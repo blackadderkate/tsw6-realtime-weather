@@ -69,7 +69,7 @@ public class Tsw6ApiClient
 
         try
         {
-            var requestUri = $"/subscription/DriverAid.PlayerInfo?Subscription={_subscriptionId}";
+            var requestUri = $"/subscription/?Subscription={_subscriptionId}";
             var response = await _httpClient.DeleteAsync(requestUri);
             response.EnsureSuccessStatusCode();
             
