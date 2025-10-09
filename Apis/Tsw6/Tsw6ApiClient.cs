@@ -12,14 +12,27 @@ public class Tsw6ApiClient
     public Tsw6ApiClient(string apiKey)
     {
         _apiKey = apiKey;
-        _httpClient = new HttpClient
+        
+        // Configure handler to disable Nagle's algorithm for faster response times
+        var handler = new SocketsHttpHandler
         {
-            BaseAddress = new Uri("http://localhost:31270/"),
-            Timeout = TimeSpan.FromSeconds(2)
+            // Disable Nagle's algorithm - send data immediately without buffering
+            UseCookies = false,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(1),
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1),
+            ConnectTimeout = TimeSpan.FromSeconds(5)
+        };
+        
+        _httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://127.0.0.1:31270"),
+            Timeout = TimeSpan.FromSeconds(30)
         };
         
         // Add the API key header to all requests automatically
         _httpClient.DefaultRequestHeaders.Add("DTGCommKey", apiKey);
+        _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+        _httpClient.DefaultRequestHeaders.ConnectionClose = false; // Keep connection alive
     }
 
     /// <summary>
@@ -33,7 +46,7 @@ public class Tsw6ApiClient
             // Generate a random subscription ID if we don't have one
             if (!_subscriptionId.HasValue)
             {
-                _subscriptionId = (ushort)(Random.Shared.Next(1, ushort.MaxValue + 1));
+                _subscriptionId = (ushort)Random.Shared.Next(1, ushort.MaxValue + 1);
             }
 
             var requestUri = $"/subscription/DriverAid.PlayerInfo?Subscription={_subscriptionId}";
@@ -95,44 +108,36 @@ public class Tsw6ApiClient
     /// <returns>The subscription ID, or null if not yet registered</returns>
     public ushort? GetSubscriptionId() => _subscriptionId;
 
-    public async Task<string> GetAsync(string endpoint)
+    /// <summary>
+    /// Reads data from the current subscription
+    /// </summary>
+    /// <returns>The subscription data, or null if the request fails or no subscription is active</returns>
+    public async Task<Tsw6SubscriptionData?> ReadPlayerInformationAsync()
     {
-        try
+        if (!_subscriptionId.HasValue)
         {
-            var response = await _httpClient.GetAsync(endpoint);
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsStringAsync();
+            Logger.LogWarning("No active subscription to read from");
+            return null;
         }
-        catch (HttpRequestException ex)
-        {
-            Logger.LogError($"HTTP request failed: {ex.Message}");
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            Logger.LogError($"Request timed out: {ex.Message}");
-            throw;
-        }
-    }
 
-    public async Task<string> PostAsync(string endpoint, string jsonContent)
-    {
         try
         {
-            var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync(endpoint, content);
+            var requestUri = $"/subscription?Subscription={_subscriptionId}";
+            var response = await _httpClient.GetAsync(requestUri);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsStringAsync();
+            
+            var subscriptionData = await response.Content.ReadFromJsonAsync(Tsw6JsonContext.Default.Tsw6SubscriptionData);
+            return subscriptionData;
         }
         catch (HttpRequestException ex)
         {
-            Logger.LogError($"HTTP request failed: {ex.Message}");
-            throw;
+            Logger.LogError($"Failed to read subscription data: {ex.Message}");
+            return null;
         }
         catch (TaskCanceledException ex)
         {
-            Logger.LogError($"Request timed out: {ex.Message}");
-            throw;
+            Logger.LogError($"Subscription data read timed out: {ex.Message}");
+            return null;
         }
     }
 
@@ -147,7 +152,7 @@ public class Tsw6ApiClient
             var response = await _httpClient.GetAsync("/info");
             response.EnsureSuccessStatusCode();
             
-            var apiInfo = await response.Content.ReadFromJsonAsync<Tsw6ApiInfo>();
+            var apiInfo = await response.Content.ReadFromJsonAsync(Tsw6JsonContext.Default.Tsw6ApiInfo);
             return apiInfo;
         }
         catch (Exception ex)
@@ -210,6 +215,8 @@ public class Tsw6ApiClient
                 Logger.LogError("Missing GameInstanceID");
                 return false;
             }
+
+            Logger.LogInfo($"Connected to API with GameInstanceID {apiInfo.Meta.GameInstanceID} on version {apiInfo.Meta.GameBuildNumber}");
 
             return true;
         }

@@ -7,7 +7,26 @@ namespace Tsw6RealtimeWeather
 
     class Tsw6RealtimeWeather
     {
+        private static Tsw6ApiClient? _tsw6ApiClient;
+
         public static async Task Main(string[] args)
+        {
+            // Set up cleanup handlers for graceful shutdown
+            AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+            Console.CancelKeyPress += OnCancelKeyPress;
+
+            try
+            {
+                await RunApplicationAsync();
+            }
+            finally
+            {
+                await CleanupAsync();
+            }
+        }
+
+        private static async Task RunApplicationAsync()
         {
             Logger.LogInfo("Searching for TSW6 API key...");
             var tsw6ApiKey = Tsw6ApiKey.Get();
@@ -34,16 +53,16 @@ namespace Tsw6RealtimeWeather
             }
 
             Logger.LogInfo("Checking for TSW6 server...");
-            var tsw6ApiClient = new Tsw6ApiClient(tsw6ApiKey);
-            var isTsw6Active = await tsw6ApiClient.IsApiAvailableAsync();
+            _tsw6ApiClient = new Tsw6ApiClient(tsw6ApiKey);
+            var isTsw6Active = await _tsw6ApiClient.IsApiAvailableAsync();
             if (!isTsw6Active)
             {
                 Logger.LogError("TSW6 HTTP Server isn't accessible, check TSW6 is running with the -HTTPAPI flag set.");
-                Logger.Close();
                 return;
             }
 
-            var weather = new RealtimeWeatherController(new Tsw6ApiClient(tsw6ApiKey), new OpenWeatherApiClient());
+            var weather = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient());
+            await weather.Initialise();
 
             // Main update loop - runs every 1 minute
             Logger.LogInfo("Starting weather update loop (every 1 minute). Press Ctrl+C to exit.");
@@ -52,7 +71,7 @@ namespace Tsw6RealtimeWeather
             {
                 e.Cancel = true;
                 cancellationTokenSource.Cancel();
-                Logger.LogInfo("Shutting down...");
+                Logger.LogInfo("Shutdown requested...");
             };
 
             while (!cancellationTokenSource.Token.IsCancellationRequested)
@@ -72,8 +91,36 @@ namespace Tsw6RealtimeWeather
                     Logger.LogError($"Error during update: {ex.Message}", ex);
                 }
             }
+        }
+
+        private static async Task CleanupAsync()
+        {
+            Logger.LogInfo("Performing cleanup...");
+            
+            if (_tsw6ApiClient?.GetSubscriptionId() != null)
+            {
+                Logger.LogInfo("Deregistering subscription...");
+                await _tsw6ApiClient.DeregisterSubscription();
+            }
             
             Logger.Close();
+        }
+
+        private static void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+        {
+            // Already handled in the main loop
+        }
+
+        private static void OnProcessExit(object? sender, EventArgs e)
+        {
+            Logger.LogInfo("Process exit detected");
+            CleanupAsync().GetAwaiter().GetResult();
+        }
+
+        private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Logger.LogError($"Unhandled exception: {e.ExceptionObject}");
+            CleanupAsync().GetAwaiter().GetResult();
         }
 
     }
