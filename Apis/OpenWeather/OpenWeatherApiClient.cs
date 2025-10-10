@@ -23,18 +23,18 @@ public class OpenWeatherApiClient
 
         var handler = new SocketsHttpHandler
         {
-            PooledConnectionLifetime = TimeSpan.FromSeconds(30),
-            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(10),
-            ConnectTimeout = TimeSpan.FromSeconds(5),
-            MaxConnectionsPerServer = 1
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+            ConnectTimeout = TimeSpan.FromSeconds(30),
+            ResponseDrainTimeout = TimeSpan.FromSeconds(10),
+            MaxConnectionsPerServer = 2
         };
 
         _httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri(BaseUrl)
+            BaseAddress = new Uri(BaseUrl),
+            Timeout = TimeSpan.FromSeconds(60)
         };
-
-        _httpClient.DefaultRequestHeaders.ConnectionClose = true;
 
         var maxRetries = retryConfig?.MaxRetries ?? 5;
         var initialDelay = retryConfig?.InitialDelayMs ?? 100;
