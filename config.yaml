@@ -16,6 +16,25 @@ update:
   # Default: 60
   location_check_interval_seconds: 10
 
+# HTTP retry settings
+retry:
+  # Maximum number of retry attempts for failed HTTP requests
+  # Default: 5
+  max_retries: 5
+  # Initial delay in milliseconds before first retry (uses exponential backoff)
+  # Default: 100ms
+  initial_delay_ms: 100
+
+# Logging settings
+logging:
+  # Minimum logging level: Debug, Information, Warning, Error
+  # Debug: Verbose logging for troubleshooting
+  # Information: Standard operational logging (recommended)
+  # Warning: Only warnings and errors
+  # Error: Only errors
+  # Default: Information
+  level: Information
+
 # API Keys
 api_keys:
   # OpenWeather API key (optional - will fall back to WeatherApiKey.txt if not provided)

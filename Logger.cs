@@ -1,16 +1,32 @@
+using System;
+using System.IO;
 using Serilog;
+using Serilog.Events;
 
 namespace Tsw6RealtimeWeather;
 
 public static class Logger
 {
-    static Logger()
+    private static bool _initialized = false;
+
+    /// <summary>
+    /// Initialize the logger with a specific log level
+    /// </summary>
+    public static void Initialize(string logLevel = "Information")
     {
+        if (_initialized)
+        {
+            return;
+        }
+
+        // Parse the log level string
+        var minimumLevel = ParseLogLevel(logLevel);
+        
         // Configure Serilog to write to both console and file
         var logFilePath = Path.Combine(AppContext.BaseDirectory, "TSW6RealtimeWeather.log");
         
         Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Debug()
+            .MinimumLevel.Is(minimumLevel)
             .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.File(
                 logFilePath,
@@ -19,7 +35,21 @@ public static class Logger
                 retainedFileCountLimit: 7)
             .CreateLogger();
 
-        Log.Information("Logger initialized");
+        _initialized = true;
+        Log.Information($"Logger initialized with level: {minimumLevel}");
+    }
+
+    private static LogEventLevel ParseLogLevel(string level)
+    {
+        return level?.ToLowerInvariant() switch
+        {
+            "debug" => LogEventLevel.Debug,
+            "information" or "info" => LogEventLevel.Information,
+            "warning" or "warn" => LogEventLevel.Warning,
+            "error" => LogEventLevel.Error,
+            "fatal" => LogEventLevel.Fatal,
+            _ => LogEventLevel.Information
+        };
     }
 
     public static void LogInfo(string message)

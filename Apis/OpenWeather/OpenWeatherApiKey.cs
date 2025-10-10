@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+
 namespace Tsw6RealtimeWeather.Apis.OpenWeather;
 
 public class OpenWeatherApiKey

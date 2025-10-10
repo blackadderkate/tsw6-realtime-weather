@@ -34,12 +34,33 @@ The application uses a `config.yaml` file for configuration. On first run, a def
   - Recommended range: 30-120 seconds
   - Example: `location_check_interval_seconds: 45` to check every 45 seconds
 
+#### HTTP Retry Settings
+- **`retry.max_retries`** (default: 5)
+  - Maximum number of retry attempts for failed HTTP requests
+  - Uses exponential backoff between retries
+  - Set to 0 to disable retries
+  - Example: `max_retries: 3` for fewer retries
+  
+- **`retry.initial_delay_ms`** (default: 100)
+  - Initial delay in milliseconds before the first retry
+  - Subsequent retries use exponential backoff (100ms → 200ms → 400ms → 800ms → 1600ms)
+  - Example: `initial_delay_ms: 200` for longer initial wait
+
 #### API Keys
 - **`api_keys.openweather`** (optional)
   - Your OpenWeather API key
   - If left empty, the application will fall back to reading from `WeatherApiKey.txt`
   - Recommended: Store your API key in the config file for easier management
   - Example: `openweather: "your_api_key_here"`
+
+#### Logging Settings
+- **`logging.level`** (default: Information)
+  - Minimum logging level: Debug, Information, Warning, Error
+  - **Debug**: Verbose logging including all location updates and distance calculations
+  - **Information**: Standard operational logging (recommended for normal use)
+  - **Warning**: Only warnings and errors (includes retry attempts)
+  - **Error**: Only error messages
+  - Example: `level: Debug` for troubleshooting
 
 ### Example config.yaml
 
@@ -49,6 +70,13 @@ weather:
 
 update:
   location_check_interval_seconds: 45
+
+retry:
+  max_retries: 5
+  initial_delay_ms: 100
+
+logging:
+  level: Information
 
 api_keys:
   openweather: "your_openweather_api_key_here"
@@ -63,6 +91,7 @@ Priority: The application checks `config.yaml` first, then falls back to `Weathe
 - Automatic weather synchronization based on player location
 - Distance-based weather updates (configurable threshold)
 - Efficient API usage with configurable update intervals
+- Configurable logging levels for different use cases
 - Automatic distance tracking and accumulation
 - Logs all activity to both console and file
 

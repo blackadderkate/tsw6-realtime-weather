@@ -1,23 +1,33 @@
+using System;
+using System.Net.Http;
 using System.Net.Http.Json;
+using System.Threading.Tasks;
+using Polly;
+using Polly.Retry;
 using Tsw6RealtimeWeather.Apis.Tsw6.Models;
+using Tsw6RealtimeWeather.Configuration;
 
 namespace Tsw6RealtimeWeather.Apis.Tsw6;
 
 public class Tsw6ApiClient
 {
     private readonly HttpClient _httpClient;
+    private readonly ResiliencePipeline _retryPipeline;
     private ushort? _subscriptionId;
 
-    public Tsw6ApiClient(string apiKey)
+    public Tsw6ApiClient(string apiKey, RetryConfig? retryConfig = null)
     {
-        // Configure handler to disable Nagle's algorithm and DNS lookup for faster response times
+        retryConfig ??= new RetryConfig(); // Use defaults if not provided
+        
+        // Configure handler with shorter connection lifetimes to avoid connection aborts
         var handler = new SocketsHttpHandler
         {
-            // Disable Nagle's algorithm - send data immediately without buffering
             UseCookies = false,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(1),
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1),
-            ConnectTimeout = TimeSpan.FromSeconds(5)
+            PooledConnectionLifetime = TimeSpan.FromSeconds(30),
+            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(10),
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            MaxConnectionsPerServer = 1,
+            EnableMultipleHttp2Connections = false
         };
         
         _httpClient = new HttpClient(handler)
@@ -29,7 +39,31 @@ public class Tsw6ApiClient
         // Add the API key header to all requests automatically
         _httpClient.DefaultRequestHeaders.Add("DTGCommKey", apiKey);
         _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-        _httpClient.DefaultRequestHeaders.ConnectionClose = false; // Keep connection alive
+        _httpClient.DefaultRequestHeaders.ConnectionClose = true;
+        
+        // Configure retry policy with exponential backoff
+        _retryPipeline = new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = retryConfig.MaxRetries,
+                Delay = TimeSpan.FromMilliseconds(retryConfig.InitialDelayMs),
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true,
+                OnRetry = args =>
+                {
+                    Logger.LogWarning($"HTTP request failed (attempt {args.AttemptNumber + 1}/{retryConfig.MaxRetries + 1}): {args.Outcome.Exception?.Message ?? "Unknown error"}");
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .Build();
+    }
+    
+    /// <summary>
+    /// Executes an HTTP operation with retry logic
+    /// </summary>
+    private async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> operation)
+    {
+        return await _retryPipeline.ExecuteAsync(async ct => await operation());
     }
 
     /// <summary>
@@ -47,20 +81,30 @@ public class Tsw6ApiClient
             }
 
             var requestUri = $"/subscription/DriverAid.PlayerInfo?Subscription={_subscriptionId}";
-            var response = await _httpClient.PostAsync(requestUri, null);
-            response.EnsureSuccessStatusCode();
+            
+            await ExecuteWithRetryAsync(async () =>
+            {
+                var response = await _httpClient.PostAsync(requestUri, null);
+                response.EnsureSuccessStatusCode();
+                return true;
+            });
             
             Logger.LogInfo($"Subscription registered with ID: {_subscriptionId}");
             return true;
         }
         catch (HttpRequestException ex)
         {
-            Logger.LogError($"Failed to register subscription: {ex.Message}");
+            Logger.LogError($"Failed to register subscription after retries: {ex.Message}");
             return false;
         }
         catch (TaskCanceledException ex)
         {
             Logger.LogError($"Subscription registration timed out: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error during subscription registration: {ex.Message}");
             return false;
         }
     }
@@ -80,8 +124,13 @@ public class Tsw6ApiClient
         try
         {
             var requestUri = $"/subscription/?Subscription={_subscriptionId}";
-            var response = await _httpClient.DeleteAsync(requestUri);
-            response.EnsureSuccessStatusCode();
+            
+            await ExecuteWithRetryAsync(async () =>
+            {
+                var response = await _httpClient.DeleteAsync(requestUri);
+                response.EnsureSuccessStatusCode();
+                return true;
+            });
             
             Logger.LogInfo($"Subscription {_subscriptionId} deregistered successfully");
             _subscriptionId = null; // Clear the subscription ID after successful deregistration
@@ -89,12 +138,17 @@ public class Tsw6ApiClient
         }
         catch (HttpRequestException ex)
         {
-            Logger.LogError($"Failed to deregister subscription: {ex.Message}");
+            Logger.LogError($"Failed to deregister subscription after retries: {ex.Message}");
             return false;
         }
         catch (TaskCanceledException ex)
         {
             Logger.LogError($"Subscription deregistration timed out: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error during subscription deregistration: {ex.Message}");
             return false;
         }
     }
@@ -120,20 +174,29 @@ public class Tsw6ApiClient
         try
         {
             var requestUri = $"/subscription?Subscription={_subscriptionId}";
-            var response = await _httpClient.GetAsync(requestUri);
-            response.EnsureSuccessStatusCode();
             
-            var subscriptionData = await response.Content.ReadFromJsonAsync(Tsw6JsonContext.Default.Tsw6SubscriptionData);
-            return subscriptionData;
+            return await ExecuteWithRetryAsync(async () =>
+            {
+                var response = await _httpClient.GetAsync(requestUri);
+                response.EnsureSuccessStatusCode();
+                
+                var subscriptionData = await response.Content.ReadFromJsonAsync(Tsw6JsonContext.Default.Tsw6SubscriptionData);
+                return subscriptionData;
+            });
         }
         catch (HttpRequestException ex)
         {
-            Logger.LogError($"Failed to read subscription data: {ex.Message}");
+            Logger.LogError($"Failed to read subscription data after retries: {ex.Message}");
             return null;
         }
         catch (TaskCanceledException ex)
         {
             Logger.LogError($"Subscription data read timed out: {ex.Message}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error reading subscription data: {ex.Message}");
             return null;
         }
     }
@@ -146,15 +209,18 @@ public class Tsw6ApiClient
     {
         try
         {
-            var response = await _httpClient.GetAsync("/info");
-            response.EnsureSuccessStatusCode();
-            
-            var apiInfo = await response.Content.ReadFromJsonAsync(Tsw6JsonContext.Default.Tsw6ApiInfo);
-            return apiInfo;
+            return await ExecuteWithRetryAsync(async () =>
+            {
+                var response = await _httpClient.GetAsync("/info");
+                response.EnsureSuccessStatusCode();
+                
+                var apiInfo = await response.Content.ReadFromJsonAsync(Tsw6JsonContext.Default.Tsw6ApiInfo);
+                return apiInfo;
+            });
         }
         catch (Exception ex)
         {
-            Logger.LogError($"Failed to get API info: {ex.Message}");
+            Logger.LogError($"Failed to get API info after retries: {ex.Message}");
             return null;
         }
     }

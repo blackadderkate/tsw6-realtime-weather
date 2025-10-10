@@ -1,6 +1,10 @@
-﻿using Tsw6RealtimeWeather.Apis.OpenWeather;
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Tsw6RealtimeWeather.Apis.OpenWeather;
 using Tsw6RealtimeWeather.Apis.Tsw6;
 using Tsw6RealtimeWeather.Configuration;
+using Tsw6RealtimeWeather.UI;
 using Tsw6RealtimeWeather.Weather;
 
 namespace Tsw6RealtimeWeather
@@ -8,6 +12,7 @@ namespace Tsw6RealtimeWeather
     internal class Program
     {
         private static Tsw6ApiClient? _tsw6ApiClient;
+        private static ConsoleUI? _ui;
 
         public static async Task Main(string[] args)
         {
@@ -28,9 +33,16 @@ namespace Tsw6RealtimeWeather
 
         private static async Task RunApplicationAsync()
         {
-            // Load configuration
-            Logger.LogInfo("Loading configuration from config.yaml...");
+            // Load configuration first (before initializing logger with specific level)
+            // Logger needs to be initialized with default level first to log config loading
             var config = ConfigManager.LoadConfig();
+            
+            // Now reinitialize logger with the configured level
+            Logger.Initialize(config.Logging.Level);
+
+            // Initialize UI
+            _ui = new ConsoleUI();
+            _ui.Initialize(config.Weather.UpdateThresholdKm);
 
             Logger.LogInfo("Searching for TSW6 API key...");
             var tsw6ApiKey = Tsw6ApiKey.Get();
@@ -38,35 +50,55 @@ namespace Tsw6RealtimeWeather
             Logger.LogInfo("Searching for OpenWeather API key...");
             var weatherApiKey = OpenWeatherApiKey.Get(config.ApiKeys.OpenWeather);
 
+            bool apiKeysFound = !string.IsNullOrEmpty(tsw6ApiKey) && !string.IsNullOrEmpty(weatherApiKey);
+            
             if (string.IsNullOrEmpty(tsw6ApiKey))
             {
                 Logger.LogWarning("No TSW6 API Key found. Please launch TSW6 with the -HTTPAPI flag set.");
-            }
-            else
-            {
-                Logger.LogInfo($"Found TSW6 API key: {tsw6ApiKey}");
             }
 
             if (string.IsNullOrEmpty(weatherApiKey))
             {
                 Logger.LogWarning("No OpenWeather API Key found. Please save a file named WeatherApiKey.txt in the same folder as this program.");
             }
-            else
-            {
-                Logger.LogInfo($"Found OpenWeather API key: {weatherApiKey}");
-            }
 
-            Logger.LogInfo("Checking for TSW6 server...");
-            _tsw6ApiClient = new Tsw6ApiClient(tsw6ApiKey);
-            var isTsw6Active = await _tsw6ApiClient.IsApiAvailableAsync();
-            if (!isTsw6Active)
+            // Check for TSW6 server and setup subscription
+            _tsw6ApiClient = new Tsw6ApiClient(tsw6ApiKey, config.Retry);
+            
+            bool tsw6Connected = false;
+            bool subscriptionActive = false;
+            
+            await _ui.ShowStartupProgress(
+                async () => {
+                    tsw6Connected = await _tsw6ApiClient.IsApiAvailableAsync();
+                    return tsw6Connected;
+                },
+                async () => {
+                    if (tsw6Connected)
+                    {
+                        var weather = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient(), config, _ui);
+                        subscriptionActive = await _tsw6ApiClient.RegisterSubscription();
+                        if (subscriptionActive)
+                        {
+                            await weather.InitialiseAsync();
+                        }
+                    }
+                    return subscriptionActive;
+                }
+            );
+
+            if (!tsw6Connected)
             {
                 Logger.LogError("TSW6 HTTP Server isn't accessible, check TSW6 is running with the -HTTPAPI flag set.");
+                _ui.UpdateStatusChecks(false, apiKeysFound, false);
+                await Task.Delay(3000);
                 return;
             }
 
-            var weather = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient(), config);
-            await weather.InitialiseAsync();
+            var weatherController = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient(), config, _ui);
+            await weatherController.InitialiseAsync();
+
+            _ui.UpdateStatusChecks(tsw6Connected, apiKeysFound, subscriptionActive);
 
             // Main update loop - uses configured interval
             var intervalSeconds = config.Update.LocationCheckIntervalSeconds;
@@ -83,8 +115,7 @@ namespace Tsw6RealtimeWeather
             {
                 try
                 {
-                    Logger.LogInfo("Updating weather...");
-                    await weather.UpdatePlayerLocationAsync();
+                    await weatherController.UpdatePlayerLocationAsync();
                     await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), cancellationTokenSource.Token);
                 }
                 catch (OperationCanceledException)

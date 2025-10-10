@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+using System.Linq;
 using GameFinder.RegistryUtils;
 using GameFinder.StoreHandlers.Steam;
 using GameFinder.StoreHandlers.Steam.Models.ValueTypes;

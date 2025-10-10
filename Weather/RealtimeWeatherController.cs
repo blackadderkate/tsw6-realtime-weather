@@ -1,6 +1,9 @@
+using System;
+using System.Threading.Tasks;
 using Tsw6RealtimeWeather.Apis.OpenWeather;
 using Tsw6RealtimeWeather.Apis.Tsw6;
 using Tsw6RealtimeWeather.Configuration;
+using Tsw6RealtimeWeather.UI;
 
 namespace Tsw6RealtimeWeather.Weather;
 
@@ -9,14 +12,16 @@ internal class RealtimeWeatherController
     private readonly double _weatherUpdateThresholdKm;
     private readonly Tsw6ApiClient _tsw6ApiClient;
     private readonly OpenWeatherApiClient _openWeatherApiClient;
+    private readonly ConsoleUI _ui;
     private PlayerLocation _playerLocation;
     private PlayerLocation _lastWeatherUpdateLocation;
     private double _accumulatedDistanceKm;
 
-    public RealtimeWeatherController(Tsw6ApiClient tsw6ApiClient, OpenWeatherApiClient openWeatherApiClient, AppConfig config)
+    public RealtimeWeatherController(Tsw6ApiClient tsw6ApiClient, OpenWeatherApiClient openWeatherApiClient, AppConfig config, ConsoleUI ui)
     {
         _tsw6ApiClient = tsw6ApiClient;
         _openWeatherApiClient = openWeatherApiClient;
+        _ui = ui;
         _weatherUpdateThresholdKm = config.Weather.UpdateThresholdKm;
         _playerLocation = PlayerLocation.Default();
         _lastWeatherUpdateLocation = PlayerLocation.Default();
@@ -53,21 +58,14 @@ internal class RealtimeWeatherController
         var distanceMeters = _playerLocation.DistanceToInMeters(newPlayerLocation);
         var distanceKm = _playerLocation.DistanceToInKilometers(newPlayerLocation);
         
-        Logger.LogInfo($"Player location: {newPlayerLocation}");
+        Logger.LogDebug($"Player location: {newPlayerLocation}");
         
-        if (distanceMeters > 0.1) // Only log if moved more than 10cm
+        if (distanceMeters > 0.1) // Only accumulate if moved more than 10cm
         {
             // Accumulate distance
             _accumulatedDistanceKm += distanceKm;
             
-            if (distanceKm >= 1.0)
-            {
-                Logger.LogInfo($"Distance travelled: {distanceKm:F2} km (Total: {_accumulatedDistanceKm:F2} km)");
-            }
-            else
-            {
-                Logger.LogInfo($"Distance travelled: {distanceMeters:F1} m (Total: {_accumulatedDistanceKm:F2} km)");
-            }
+            Logger.LogDebug($"Distance travelled: {distanceKm:F2} km (Total: {_accumulatedDistanceKm:F2} km)");
             
             // Check if we've crossed the weather update threshold
             if (_accumulatedDistanceKm >= _weatherUpdateThresholdKm)
@@ -80,6 +78,9 @@ internal class RealtimeWeatherController
                 _lastWeatherUpdateLocation = newPlayerLocation;
             }
         }
+        
+        // Always update UI with current progress (even if player is stationary)
+        _ui.UpdateDistance(_accumulatedDistanceKm, newPlayerLocation.ToString());
         
         _playerLocation = newPlayerLocation;
     }

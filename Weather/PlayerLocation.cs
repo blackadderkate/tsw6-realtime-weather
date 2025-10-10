@@ -1,3 +1,5 @@
+using System;
+
 namespace Tsw6RealtimeWeather.Weather;
 
 /// <summary>
