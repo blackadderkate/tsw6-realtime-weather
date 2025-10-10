@@ -1,47 +1,51 @@
-# Automated Release System
+# Automated Build System
 
-This project uses GitHub Actions to automatically build and release the application.
+This project uses GitHub Actions to automatically build the application on every push.
 
 ## How It Works
 
-### 1. **Development Builds** (Automatic on every push to `main`)
-- **Trigger**: Every push to the `main` branch
-- **Release Tag**: `dev-latest` (updated automatically)
-- **Type**: Pre-release
-- **Purpose**: Bleeding-edge builds for testing and development
+### Automatic Builds
+- **Trigger**: Every push to `main` or pull request
+- **Output**: ZIP package with executable and documentation
+- **Storage**: Workflow artifacts (retained for 90 days)
+- **Purpose**: Always have a fresh build ready to release
 
 When you push to `main`, GitHub Actions will:
 1. Build the AOT compiled executable
 2. Create a ZIP package with the executable, config, and documentation
-3. Update the `dev-latest` release with the new build
-4. Mark it as a pre-release
+3. Upload as a workflow artifact
+4. Artifact is available for download from the Actions tab
 
-### 2. **Stable Releases** (Manual version tags)
-- **Trigger**: Pushing a version tag (e.g., `v1.0.0`)
-- **Type**: Full release with auto-generated release notes
-- **Purpose**: Official stable releases for end users
+## Creating Releases
 
-To create a stable release:
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+Releases are created **manually** from the build artifacts:
 
-GitHub Actions will:
-1. Build the AOT compiled executable
-2. Create a ZIP package
-3. Create a new release with the version tag
-4. Auto-generate release notes from commits since the last tag
-5. Mark it as the latest release
+1. **Push changes to main**
+   ```bash
+   git add .
+   git commit -m "your changes"
+   git push origin main
+   ```
 
-### 3. **Pull Request Builds**
-- **Trigger**: Pull requests to `main`
-- **Purpose**: Verify that PRs compile successfully
-- No releases are created, but artifacts are available for testing
+2. **Wait for build to complete**
+   - Check Actions tab for green checkmark
+   - Workflow typically completes in 2-5 minutes
 
-## Release Contents
+3. **Download the artifact**
+   - Click on the workflow run
+   - Find "Artifacts" section at the bottom
+   - Download the ZIP file
 
-Every release includes:
+4. **Create a GitHub Release**
+   - Go to Releases → Draft a new release
+   - Create a tag (e.g., `v1.0.0`)
+   - Write release notes
+   - Upload the downloaded ZIP file
+   - Publish the release
+
+## Artifact Contents
+
+Every build artifact includes:
 - `tsw6-realtime-weather.exe` - Native AOT compiled executable (~14.5MB)
 - `config.yaml` - Configuration template
 - `README.md` - Full documentation
@@ -49,50 +53,19 @@ Every release includes:
 
 ## Versioning
 
-Follow semantic versioning:
+Follow semantic versioning for releases:
 - `v1.0.0` - Major release (breaking changes)
 - `v1.1.0` - Minor release (new features, backward compatible)
 - `v1.0.1` - Patch release (bug fixes)
 
 ## Manual Workflow Trigger
 
-You can also manually trigger a build:
-1. Go to Actions → Build and Release
+You can manually trigger a build:
+1. Go to Actions → Build
 2. Click "Run workflow"
 3. Select the branch
 4. Click "Run workflow"
-
-## Development Workflow
-
-### Regular Development
-```bash
-# Make changes, commit
-git add .
-git commit -m "feat: add new feature"
-git push origin main
-# ✅ Automatic dev-latest release created
-```
-
-### Creating a Stable Release
-```bash
-# Update version references if needed
-# Make sure everything is committed and pushed
-
-# Create and push a tag
-git tag v1.0.0
-git push origin v1.0.0
-# ✅ Automatic stable release created
-```
-
-## Downloading Releases
-
-### For End Users
-- Go to the [Releases](https://github.com/GarethLowe/tsw6-realtime-weather/releases) page
-- Download the latest stable release (without "pre-release" label)
-
-### For Testers/Developers
-- Download the `dev-latest` pre-release for the absolute latest version
-- Note: Development builds may be less stable
+5. Download artifact when complete
 
 ## Troubleshooting
 
@@ -103,13 +76,12 @@ git push origin v1.0.0
   - Missing dependencies (check .csproj)
   - .NET version mismatch (currently using .NET 9.0)
 
-### Release Not Created
-- For stable releases: Make sure you pushed the tag (`git push origin v1.0.0`)
-- For dev builds: Check that you pushed to `main` (not a different branch)
-- Verify the Actions workflow completed successfully
+### Can't Find Artifacts
+- Make sure the workflow completed successfully (green checkmark)
+- Artifacts appear at the bottom of the workflow run page
+- Artifacts are deleted after 90 days
 
-### Old dev-latest Release
-The `dev-latest` tag is automatically moved to the latest commit on `main`. If you don't see your changes:
-- Wait for the Actions workflow to complete (check Actions tab)
-- Refresh the releases page
-- The commit SHA in the release notes should match your latest commit
+### Build Takes Too Long
+- AOT compilation typically takes 2-5 minutes
+- Check the workflow logs for any hanging processes
+- Cancel and re-run if stuck

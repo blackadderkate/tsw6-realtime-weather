@@ -15,11 +15,7 @@ The application displays two main panels:
 
 ## Download
 
-### Stable Releases
-Download the [latest stable release](https://github.com/GarethLowe/tsw6-realtime-weather/releases/latest) for the most tested version.
-
-### Development Builds
-Want the absolute latest features? Download the [`dev-latest` pre-release](https://github.com/GarethLowe/tsw6-realtime-weather/releases/tag/dev-latest) (automatically updated on every commit to main).
+Download the [latest release](https://github.com/GarethLowe/tsw6-realtime-weather/releases/latest) from the Releases page.
 
 ## Setup
 
@@ -180,22 +176,23 @@ dotnet publish -c Release -r win-x64 --self-contained -p:PublishAot=true -o ./pu
 # The executable will be in ./publish/tsw6-realtime-weather.exe
 ```
 
-### Automated Releases
+### Automated Builds
 
-The project includes a GitHub Actions workflow that automatically builds and packages releases:
+The project includes a GitHub Actions workflow that automatically builds on every push to `main`:
 
-1. **Automatic**: Push a version tag to trigger a release
+1. **Automatic**: Push to main triggers a build
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git push origin main
    ```
 
-2. **Manual**: Go to Actions → Build and Release → Run workflow
+2. **Manual**: Go to Actions → Build → Run workflow
 
-The workflow produces a ZIP file containing:
+The workflow produces a ZIP artifact containing:
 - Native AOT compiled executable (no .NET runtime required)
 - Configuration template (`config.yaml`)
 - Documentation (`README.md` and `QUICKSTART.txt`)
+
+Artifacts are available in the Actions tab and can be used to create releases manually.
 
 ## License
 MIT License - feel free to modify and distribute.
