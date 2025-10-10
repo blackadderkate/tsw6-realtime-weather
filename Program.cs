@@ -68,7 +68,7 @@ namespace Tsw6RealtimeWeather
             bool tsw6Connected = false;
             bool subscriptionActive = false;
             
-            await _ui.ShowStartupProgress(
+            await ConsoleUI.ShowStartupProgress(
                 async () => {
                     tsw6Connected = await _tsw6ApiClient.IsApiAvailableAsync();
                     return tsw6Connected;
@@ -76,7 +76,7 @@ namespace Tsw6RealtimeWeather
                 async () => {
                     if (tsw6Connected)
                     {
-                        var weather = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient(), config, _ui);
+                        var weather = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient(weatherApiKey, config.Retry), config, _ui);
                         subscriptionActive = await _tsw6ApiClient.RegisterSubscription();
                         if (subscriptionActive)
                         {
@@ -95,7 +95,7 @@ namespace Tsw6RealtimeWeather
                 return;
             }
 
-            var weatherController = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient(), config, _ui);
+            var weatherController = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient(weatherApiKey, config.Retry), config, _ui);
             await weatherController.InitialiseAsync();
 
             _ui.UpdateStatusChecks(tsw6Connected, apiKeysFound, subscriptionActive);

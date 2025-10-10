@@ -62,18 +62,15 @@ internal class RealtimeWeatherController
         
         if (distanceMeters > 0.1) // Only accumulate if moved more than 10cm
         {
-            // Accumulate distance
             _accumulatedDistanceKm += distanceKm;
             
             Logger.LogDebug($"Distance travelled: {distanceKm:F2} km (Total: {_accumulatedDistanceKm:F2} km)");
             
-            // Check if we've crossed the weather update threshold
             if (_accumulatedDistanceKm >= _weatherUpdateThresholdKm)
             {
                 Logger.LogInfo($"Accumulated distance ({_accumulatedDistanceKm:F2} km) exceeded threshold ({_weatherUpdateThresholdKm} km) - updating weather");
                 await UpdateWeatherDataAsync(newPlayerLocation);
                 
-                // Reset accumulated distance and update last weather location
                 _accumulatedDistanceKm = 0.0;
                 _lastWeatherUpdateLocation = newPlayerLocation;
             }
@@ -86,17 +83,33 @@ internal class RealtimeWeatherController
     }
 
     /// <summary>
-    /// Fetches weather data for the given location
+    /// Fetches weather data for the given location and updates the UI
     /// </summary>
     private async Task UpdateWeatherDataAsync(PlayerLocation location)
     {
         Logger.LogInfo($"Fetching weather data for location: {location}");
         
-        // TODO: Implement OpenWeather API call
-        // var weatherData = await _openWeatherApiClient.GetWeatherAsync(location.Latitude, location.Longitude);
-        // Logger.LogInfo($"Weather: {weatherData}");
-        
-        await Task.CompletedTask; // Remove this when implementing the actual API call
+        try
+        {
+            var weatherData = await _openWeatherApiClient.GetCurrentWeatherAsync(location.Latitude, location.Longitude);
+            
+            if (weatherData == null)
+            {
+                Logger.LogWarning("No weather data returned from API");
+                _ui.UpdateWeather("⚠ Failed to fetch weather data");
+                return;
+            }
+
+            // Pass structured weather data to UI
+            _ui.UpdateWeather(weatherData);
+            
+            Logger.LogInfo($"Weather updated successfully: {weatherData.Weather?[0]?.Main} - {weatherData.Main?.Temp}K");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error updating weather data: {ex.Message}");
+            _ui.UpdateWeather($"⚠ Error: {ex.Message}");
+        }
     }
 
     /// <summary>

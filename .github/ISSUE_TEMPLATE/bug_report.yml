@@ -1,0 +1,85 @@
+name: Bug Report
+description: Report a bug or issue with TSW6 Realtime Weather
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version of TSW6 Realtime Weather are you using?
+      placeholder: "e.g., v1.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Launch TSW6 with -HTTPAPI
+        2. Start the application
+        3. Drive for 10km
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: The weather should update...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Output
+      description: Please paste relevant log output from TSW6RealtimeWeather.log
+      render: shell
+      placeholder: |
+        [2025-01-01 12:00:00 INF] Starting application...
+        [2025-01-01 12:00:01 ERR] Error occurred...
+
+  - type: input
+    id: tsw6-version
+    attributes:
+      label: TSW6 Version
+      description: What version of Train Sim World 6 are you running?
+      placeholder: "e.g., Latest from Steam"
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Your config.yaml settings (remove API key!)
+      render: yaml
+      placeholder: |
+        weather:
+          update_threshold_km: 10.0
+        update:
+          location_check_interval_seconds: 10
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information that might be helpful
+      placeholder: Screenshots, error messages, etc.

@@ -1,0 +1,110 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build AOT Release
+      run: dotnet publish -c Release -r win-x64 --self-contained -p:PublishAot=true -p:PublishSingleFile=false -o ./publish
+      
+    - name: Create distribution package
+      run: |
+        # Create release directory structure
+        New-Item -ItemType Directory -Force -Path ./release
+        
+        # Copy executable
+        Copy-Item ./publish/tsw6-realtime-weather.exe ./release/
+        
+        # Copy config template
+        Copy-Item ./config.yaml ./release/config.yaml
+        
+        # Copy README
+        Copy-Item ./README.md ./release/
+        
+        # Create a usage instructions file
+        @"
+        TSW6 Realtime Weather - Quick Start
+        ====================================
+        
+        1. Make sure Train Sim World 6 is installed
+        2. Edit config.yaml and add your OpenWeather API key:
+           - Get a free API key from: https://openweathermap.org/api
+           - Update the 'openweather' field under 'api_keys'
+        
+        3. Launch TSW6 with the -HTTPAPI flag:
+           - Right-click TSW6 in Steam
+           - Properties → General → Launch Options
+           - Add: -HTTPAPI
+        
+        4. Run tsw6-realtime-weather.exe
+        
+        5. Start playing TSW6 and drive around!
+        
+        Configuration:
+        - weather.update_threshold_km: Distance to travel before weather updates (default: 10 km)
+        - update.location_check_interval_seconds: How often to check location (default: 10 seconds)
+        - retry.max_retries: HTTP retry attempts (default: 5)
+        - logging.level: Debug, Information, Warning, or Error (default: Information)
+        
+        Logs are saved to TSW6RealtimeWeather.log in the same directory.
+        
+        For more information, see README.md
+        "@ | Out-File -FilePath ./release/QUICKSTART.txt -Encoding UTF8
+        
+    - name: Create ZIP archive
+      run: |
+        $version = if ($env:GITHUB_REF -match 'refs/tags/(.*)') { $matches[1] } else { "dev" }
+        Compress-Archive -Path ./release/* -DestinationPath "./tsw6-realtime-weather-$version-windows-x64.zip"
+        
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tsw6-realtime-weather-windows-x64
+        path: ./tsw6-realtime-weather-*.zip
+        
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./tsw6-realtime-weather-*.zip
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        body: |
+          ## TSW6 Realtime Weather
+          
+          Native Windows executable with AOT compilation for optimal performance and minimal dependencies.
+          
+          ### Installation
+          1. Download and extract the ZIP file
+          2. Edit `config.yaml` with your OpenWeather API key
+          3. Launch TSW6 with `-HTTPAPI` flag
+          4. Run `tsw6-realtime-weather.exe`
+          
+          ### What's Included
+          - `tsw6-realtime-weather.exe` - Native AOT compiled executable
+          - `config.yaml` - Configuration file (edit this with your API key)
+          - `README.md` - Full documentation
+          - `QUICKSTART.txt` - Quick start guide
+          
+          See QUICKSTART.txt for detailed setup instructions.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

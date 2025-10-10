@@ -1,6 +1,34 @@
 # tsw6-realtime-weather
 Realtime weather mod for Train Sim World, using open data.
 
+Synchronizes real-world weather conditions with Train Sim World 6 based on your exact location in the game. As you drive your train through different regions, the application automatically fetches and displays current weather data from OpenWeather API.
+
+## Example Output
+
+```
+Status Checks
+┌─────────────────────┬────────┐
+│ Check               │ Status │
+├─────────────────────┼────────┤
+│ TSW6 Connection     │ ✓      │
+│ API Keys            │ ✓      │
+│ Subscription Active │ ✓      │
+└─────────────────────┴────────┘
+
+Weather Information
+📍 Location: London, GB
+☁️  Condition: Clouds - overcast clouds
+🌡️  Temperature: 12.5°C (feels like 11.8°C)
+   Min/Max: 11.2°C / 13.8°C
+💧 Humidity: 78%
+🔽 Pressure: 1015 hPa
+💨 Wind: 18.5 km/h SW
+☁️  Cloudiness: 90%
+👁️  Visibility: 10.0 km
+🌅 Sunrise: 06:45 | 🌇 Sunset: 18:32
+⏰ Updated: 2025-10-10 14:23:15
+```
+
 ## Setup
 
 ### Prerequisites
@@ -88,12 +116,25 @@ For backward compatibility, you can still use a `WeatherApiKey.txt` file instead
 Priority: The application checks `config.yaml` first, then falls back to `WeatherApiKey.txt`.
 
 ## Features
-- Automatic weather synchronization based on player location
-- Distance-based weather updates (configurable threshold)
-- Efficient API usage with configurable update intervals
-- Configurable logging levels for different use cases
-- Automatic distance tracking and accumulation
-- Logs all activity to both console and file
+- 🌦️  **Real-time weather data** from OpenWeather API based on your exact train location
+- 📍 **Automatic location tracking** via TSW6 HTTP API
+- 🚂 **Distance-based updates** - weather refreshes after traveling configured distance (default: 10km)
+- 📊 **Rich terminal UI** with live status updates, progress tracking, and weather display
+- ⚙️  **Configurable everything** - update intervals, thresholds, logging levels, retry behavior
+- 🔄 **HTTP retry resilience** - automatic recovery from network issues with exponential backoff
+- 📝 **Comprehensive logging** - file and console logging with configurable verbosity
+- 🎯 **Native AOT compilation** - small executable size, no .NET runtime required
+
+### Weather Information Displayed
+- Current conditions (sunny, rainy, cloudy, etc.) with emoji indicators
+- Temperature (current, feels like, min/max) in Celsius
+- Humidity and atmospheric pressure
+- Wind speed and direction with gusts
+- Precipitation (rain/snow) intensity
+- Cloud coverage percentage
+- Visibility distance
+- Sunrise and sunset times
+- Location name and country
 
 ## How It Works
 1. The application connects to the TSW6 HTTP API to monitor player location
@@ -114,6 +155,44 @@ Make sure you launched Train Sim World 6 with the `-HTTPAPI` flag. You can add t
 ### "No OpenWeather API Key found"
 - Add your API key to `config.yaml` under `api_keys.openweather`, OR
 - Create a `WeatherApiKey.txt` file with your API key
+
+## Building from Source
+
+### Prerequisites
+- .NET 9.0 SDK or later
+- Windows, Linux, or macOS
+
+### Build Commands
+
+#### Development Build
+```powershell
+dotnet build
+```
+
+#### Release Build (AOT Compiled)
+```powershell
+# Windows x64
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishAot=true -o ./publish
+
+# The executable will be in ./publish/tsw6-realtime-weather.exe
+```
+
+### Automated Releases
+
+The project includes a GitHub Actions workflow that automatically builds and packages releases:
+
+1. **Automatic**: Push a version tag to trigger a release
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **Manual**: Go to Actions → Build and Release → Run workflow
+
+The workflow produces a ZIP file containing:
+- Native AOT compiled executable (no .NET runtime required)
+- Configuration template (`config.yaml`)
+- Documentation (`README.md` and `QUICKSTART.txt`)
 
 ## License
 MIT License - feel free to modify and distribute.

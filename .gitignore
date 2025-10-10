@@ -59,3 +59,15 @@ nunit-*.xml
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# User-specific files
+WeatherApiKey.txt
+*.log
+
+# Build artifacts
+publish/
+release/
+*.zip
+
+# Runtime files
+config.yaml.backup
