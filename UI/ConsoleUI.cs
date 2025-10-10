@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Spectre.Console;
 using Tsw6RealtimeWeather.Apis.OpenWeather.Models;
-using YamlDotNet.Core;
 
 namespace Tsw6RealtimeWeather.UI;
 
@@ -31,7 +30,6 @@ public class ConsoleUI
         _distanceThreshold = distanceThreshold;
         AnsiConsole.Clear();
         
-        // Display compact header
         AnsiConsole.Write(
             new FigletText("TSW6 Weather")
                 .LeftJustified()
@@ -39,14 +37,12 @@ public class ConsoleUI
         
         AnsiConsole.MarkupLine("[dim]Real-time weather sync for Train Sim World 6[/]\n");
         
-        // Create the layout - only Distance and Weather columns
         _layout = new Layout("Root")
             .SplitColumns(
                 new Layout("Distance"),
                 new Layout("Weather")
             );
         
-        // Set proportions
         _layout["Distance"].Size(50);
         _layout["Weather"].Size(50);
         
@@ -71,7 +67,7 @@ public class ConsoleUI
     public void UpdateWeather(string weatherInfo)
     {
         _weatherInfo = weatherInfo;
-        _currentWeather = null; // Clear structured data when using string
+        _currentWeather = null;
         UpdateDisplay();
     }
 
@@ -84,7 +80,7 @@ public class ConsoleUI
         }
         else
         {
-            _weatherInfo = ""; // Clear string when using structured data
+            _weatherInfo = "";
         }
         UpdateDisplay();
     }
@@ -108,22 +104,19 @@ public class ConsoleUI
     {
         if (_layout == null) return;
 
-        // Show warnings only if there are issues
         List<string> warnings = new List<string>();
         
         if (!_tsw6Connected)
             warnings.Add("⚠ TSW6 not connected - Start TSW6 with -HTTPAPI flag");
         
         if (!_apiKeysFound)
-            warnings.Add("⚠ API keys not found - Check config.yaml");
+            warnings.Add("⚠ API keys not found - Check config.json");
         
         if (!_subscriptionActive && _tsw6Connected)
             warnings.Add("⚠ Subscription not active - Drive the train to activate");
 
-        // Create compact distance panel with progress bar
         var distancePercentage = Math.Min((_accumulatedDistance / _distanceThreshold) * 100.0, 100.0);
         
-        // Create a visual progress bar using BreakdownChart
         var progressChart = new BreakdownChart()
             .Width(50)
             .ShowPercentage()
@@ -141,17 +134,14 @@ public class ConsoleUI
             .Border(BoxBorder.Rounded)
             .BorderColor(Color.Yellow);
 
-        // Create weather panel
         Spectre.Console.Rendering.IRenderable weatherContent;
         
         if (_currentWeather != null)
         {
-            // Structured weather display
             weatherContent = CreateWeatherDisplay(_currentWeather);
         }
         else if (!string.IsNullOrEmpty(_weatherInfo))
         {
-            // Fallback to string display
             weatherContent = new Markup($"[dim]{Markup.Escape(_weatherInfo)}[/]");
         }
         else
@@ -164,14 +154,11 @@ public class ConsoleUI
             .Border(BoxBorder.Rounded)
             .BorderColor(Color.Cyan1);
 
-        // Update layout
         _layout["Distance"].Update(_distancePanel);
         _layout["Weather"].Update(_weatherPanel);
 
-        // Render the layout
         AnsiConsole.Clear();
         
-        // Re-display compact header
         AnsiConsole.Write(
             new FigletText("TSW6 Weather")
                 .LeftJustified()
@@ -179,7 +166,6 @@ public class ConsoleUI
         
         AnsiConsole.MarkupLine("[dim]Real-time weather sync for Train Sim World 6[/]\n");
         
-        // Show warnings if there are any issues
         if (warnings.Count > 0)
         {
             foreach (var warning in warnings)
@@ -200,7 +186,6 @@ public class ConsoleUI
             .AddColumn(new GridColumn().NoWrap().PadRight(1))
             .AddColumn(new GridColumn());
 
-        // Location - make it more compact
         if (!string.IsNullOrEmpty(weather.Name))
         {
             grid.AddRow(
@@ -209,7 +194,6 @@ public class ConsoleUI
             );
         }
 
-        // Weather Condition
         if (weather.Weather != null && weather.Weather.Count > 0)
         {
             var condition = weather.Weather[0];
@@ -220,7 +204,6 @@ public class ConsoleUI
             );
         }
 
-        // Temperature - color coded based on temperature
         if (weather.Main != null)
         {
             var tempC = weather.Main.Temp - 273.15;
@@ -232,7 +215,6 @@ public class ConsoleUI
             );
         }
 
-        // Cloud Cover
         if (weather.Clouds != null)
         {
             var cloudColor = weather.Clouds.All switch
@@ -249,7 +231,6 @@ public class ConsoleUI
             );
         }
 
-        // Precipitation - compact
         if (weather.Rain != null && weather.Rain.OneHour.HasValue && weather.Rain.OneHour.Value > 0)
         {
             grid.AddRow(
@@ -265,7 +246,6 @@ public class ConsoleUI
             );
         }
 
-        // Wind - single line with gusts
         if (weather.Wind != null)
         {
             var windSpeedKmh = weather.Wind.Speed * 3.6;
@@ -286,7 +266,6 @@ public class ConsoleUI
             );
         }
 
-        // Additional Info - single compact line
         if (weather.Main != null)
         {
            

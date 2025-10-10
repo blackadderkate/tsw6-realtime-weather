@@ -32,7 +32,7 @@ Download the [latest release](https://github.com/GarethLowe/tsw6-realtime-weathe
 
 ## Configuration
 
-The application uses a `config.yaml` file for configuration. On first run, a default configuration file will be created automatically.
+The application uses a `config.json` file for configuration. On first run, a default configuration file will be created automatically.
 
 ### Configuration Options
 
@@ -67,7 +67,7 @@ The application uses a `config.yaml` file for configuration. On first run, a def
   - Your OpenWeather API key
   - If left empty, the application will fall back to reading from `WeatherApiKey.txt`
   - Recommended: Store your API key in the config file for easier management
-  - Example: `openweather: "your_api_key_here"`
+  - Example: `"openweather": "your_api_key_here"`
 
 #### Logging Settings
 - **`logging.level`** (default: Information)
@@ -76,32 +76,35 @@ The application uses a `config.yaml` file for configuration. On first run, a def
   - **Information**: Standard operational logging (recommended for normal use)
   - **Warning**: Only warnings and errors (includes retry attempts)
   - **Error**: Only error messages
-  - Example: `level: Debug` for troubleshooting
+  - Example: `"level": "Debug"` for troubleshooting
 
-### Example config.yaml
+### Example config.json
 
-```yaml
-weather:
-  update_threshold_km: 15.0
-
-update:
-  location_check_interval_seconds: 45
-
-retry:
-  max_retries: 5
-  initial_delay_ms: 100
-
-logging:
-  level: Information
-
-api_keys:
-  openweather: "your_openweather_api_key_here"
+```json
+{
+  "weather": {
+    "update_threshold_km": 15.0
+  },
+  "update": {
+    "location_check_interval_seconds": 45
+  },
+  "retry": {
+    "max_retries": 5,
+    "initial_delay_ms": 100
+  },
+  "logging": {
+    "level": "Information"
+  },
+  "api_keys": {
+    "openweather": "your_openweather_api_key_here"
+  }
+}
 ```
 
 ### Legacy API Key File
-For backward compatibility, you can still use a `WeatherApiKey.txt` file instead of adding the key to `config.yaml`. Simply create a text file named `WeatherApiKey.txt` in the same folder as the executable and paste your OpenWeather API key into it.
+For backward compatibility, you can still use a `WeatherApiKey.txt` file instead of adding the key to `config.json`. Simply create a text file named `WeatherApiKey.txt` in the same folder as the executable and paste your OpenWeather API key into it.
 
-Priority: The application checks `config.yaml` first, then falls back to `WeatherApiKey.txt`.
+Priority: The application checks `config.json` first, then falls back to `WeatherApiKey.txt`.
 
 ## Features
 - 🌦️  **Real-time weather synchronization** - Fetches weather from OpenWeather API and updates TSW6 game weather
@@ -143,7 +146,7 @@ Make sure you launched Train Sim World 6 with the `-HTTPAPI` flag. You can add t
 3. Launch the game, then run the application
 
 ### Warning: "API keys not found"
-- Add your OpenWeather API key to `config.yaml` under `api_keys.openweather`, OR
+- Add your OpenWeather API key to `config.json` under `"api_keys": { "openweather": "..." }`, OR
 - Create a `WeatherApiKey.txt` file in the same folder as the executable with your API key
 
 ### Warning: "Subscription not active"
@@ -189,7 +192,7 @@ The project includes a GitHub Actions workflow that automatically builds on ever
 
 The workflow produces a ZIP artifact containing:
 - Native AOT compiled executable (no .NET runtime required)
-- Configuration template (`config.yaml`)
+- Configuration template (`config.json`)
 - Documentation (`README.md` and `QUICKSTART.txt`)
 
 Artifacts are available in the Actions tab and can be used to create releases manually.

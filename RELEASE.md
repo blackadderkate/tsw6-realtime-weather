@@ -85,7 +85,7 @@ New-Item -ItemType Directory -Force -Path ./release
 
 # Copy files
 Copy-Item ./publish/tsw6-realtime-weather.exe ./release/
-Copy-Item ./config.yaml ./release/
+Copy-Item ./config.json ./release/
 Copy-Item ./README.md ./release/
 
 # Create ZIP

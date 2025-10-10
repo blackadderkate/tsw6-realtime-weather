@@ -70,4 +70,4 @@ release/
 *.zip
 
 # Runtime files
-config.yaml.backup
+config.json.backup

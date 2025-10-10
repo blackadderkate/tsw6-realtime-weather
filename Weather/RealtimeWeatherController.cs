@@ -11,13 +11,14 @@ internal class RealtimeWeatherController
 {
     private readonly double _weatherUpdateThresholdKm;
     private readonly Tsw6ApiClient _tsw6ApiClient;
-    private readonly OpenWeatherApiClient _openWeatherApiClient;
+    private readonly OpenWeatherApiClient? _openWeatherApiClient;
     private readonly ConsoleUI _ui;
+    private readonly bool _hasWeatherApiKey;
     private PlayerLocation _playerLocation;
     private PlayerLocation _lastWeatherUpdateLocation;
     private double _accumulatedDistanceKm;
 
-    public RealtimeWeatherController(Tsw6ApiClient tsw6ApiClient, OpenWeatherApiClient openWeatherApiClient, AppConfig config, ConsoleUI ui)
+    public RealtimeWeatherController(Tsw6ApiClient tsw6ApiClient, OpenWeatherApiClient? openWeatherApiClient, AppConfig config, ConsoleUI ui)
     {
         _tsw6ApiClient = tsw6ApiClient;
         _openWeatherApiClient = openWeatherApiClient;
@@ -26,15 +27,22 @@ internal class RealtimeWeatherController
         _playerLocation = PlayerLocation.Default();
         _lastWeatherUpdateLocation = PlayerLocation.Default();
         _accumulatedDistanceKm = 0.0;
+        _hasWeatherApiKey = openWeatherApiClient != null;
         
-        Logger.LogInfo($"Weather controller initialized with {_weatherUpdateThresholdKm} km update threshold");
+        if (!_hasWeatherApiKey)
+        {
+            Logger.LogWarning("Weather controller initialized without OpenWeather API key - weather sync disabled");
+        }
+        else
+        {
+            Logger.LogInfo($"Weather controller initialized with {_weatherUpdateThresholdKm} km update threshold");
+        }
     }
 
     internal async Task InitialiseAsync()
     {
         await _tsw6ApiClient.RegisterSubscription();
         
-        // Get initial location and fetch weather
         var initialLocation = await ReadPlayerLocationAsync();
         if (initialLocation != null)
         {
@@ -54,13 +62,12 @@ internal class RealtimeWeatherController
             return;
         }
 
-        // Calculate distance travelled since last update
         var distanceMeters = _playerLocation.DistanceToInMeters(newPlayerLocation);
         var distanceKm = _playerLocation.DistanceToInKilometers(newPlayerLocation);
         
         Logger.LogDebug($"Player location: {newPlayerLocation}");
         
-        if (distanceMeters > 0.1) // Only accumulate if moved more than 10cm
+        if (distanceMeters > 0.1)
         {
             _accumulatedDistanceKm += distanceKm;
             
@@ -76,17 +83,20 @@ internal class RealtimeWeatherController
             }
         }
         
-        // Always update UI with current progress (even if player is stationary)
         _ui.UpdateDistance(_accumulatedDistanceKm, newPlayerLocation.ToString());
         
         _playerLocation = newPlayerLocation;
     }
 
-    /// <summary>
-    /// Fetches weather data for the given location and updates both UI and TSW6
-    /// </summary>
     private async Task UpdateWeatherDataAsync(PlayerLocation location)
     {
+        if (!_hasWeatherApiKey || _openWeatherApiClient == null)
+        {
+            Logger.LogDebug("Skipping weather update - no OpenWeather API key configured");
+            _ui.UpdateWeather("⚠ No OpenWeather API key - configure in config.json or WeatherApiKey.txt");
+            return;
+        }
+        
         Logger.LogInfo($"Fetching weather data for location: {location}");
         
         try
@@ -100,13 +110,10 @@ internal class RealtimeWeatherController
                 return;
             }
 
-            // Pass structured weather data to UI
             _ui.UpdateWeather(weatherData);
             
-            // Convert OpenWeather data to TSW6 format
             var tsw6Weather = WeatherConverter.ConvertToTsw6Weather(weatherData);
             
-            // Update TSW6 with the new weather
             var updateSuccess = await _tsw6ApiClient.UpdateWeatherAsync(tsw6Weather);
             
             if (updateSuccess)

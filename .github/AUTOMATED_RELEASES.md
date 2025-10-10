@@ -47,7 +47,7 @@ Releases are created **manually** from the build artifacts:
 
 Every build artifact includes:
 - `tsw6-realtime-weather.exe` - Native AOT compiled executable (~14.5MB)
-- `config.yaml` - Configuration template
+- `config.json` - Configuration template
 - `README.md` - Full documentation
 - `QUICKSTART.txt` - Quick start guide
 

@@ -13,14 +13,12 @@ public class OpenWeatherApiKey
     /// </summary>
     public static string Get(string? configApiKey = null)
     {
-        // If a config API key is provided and not empty, use it
         if (!string.IsNullOrWhiteSpace(configApiKey))
         {
-            Logger.LogInfo("Using OpenWeather API key from config.yaml");
+            Logger.LogInfo("Using OpenWeather API key from config.json");
             return configApiKey;
         }
 
-        // Otherwise, fall back to cached or file-based key
         if (cachedApiKey)
         {
             return apiKey;

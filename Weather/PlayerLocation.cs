@@ -57,9 +57,8 @@ public class PlayerLocation
     /// <returns>Distance in meters</returns>
     public double DistanceToInMeters(PlayerLocation other)
     {
-        const double earthRadiusMeters = 6371000; // Earth's radius in meters
+        const double earthRadiusMeters = 6371000;
         
-        // Convert degrees to radians
         var lat1Rad = DegreesToRadians(Latitude);
         var lat2Rad = DegreesToRadians(other.Latitude);
         var deltaLatRad = DegreesToRadians(other.Latitude - Latitude);

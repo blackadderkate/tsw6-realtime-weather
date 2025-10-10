@@ -1,23 +1,32 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Tsw6RealtimeWeather.Configuration;
 
 /// <summary>
-/// Handles loading and saving application configuration from YAML files
+/// JSON serialization context for AOT compatibility
+/// </summary>
+[JsonSourceGenerationOptions(
+    WriteIndented = true,
+    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
+    DefaultIgnoreCondition = JsonIgnoreCondition.Never)]
+[JsonSerializable(typeof(AppConfig))]
+internal partial class ConfigJsonContext : JsonSerializerContext
+{
+}
+
+/// <summary>
+/// Handles loading and saving application configuration from JSON files
 /// </summary>
 public static class ConfigManager
 {
-    private const string ConfigFileName = "config.yaml";
+    private const string ConfigFileName = "config.json";
     
     /// <summary>
-    /// Loads configuration from config.yaml, creates default if it doesn't exist
+    /// Loads configuration from config.json, creates default if it doesn't exist
     /// </summary>
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Configuration is loaded at startup before AOT compilation affects runtime behavior")]
     public static AppConfig LoadConfig()
     {
         var configPath = Path.Combine(AppContext.BaseDirectory, ConfigFileName);
@@ -32,12 +41,15 @@ public static class ConfigManager
 
         try
         {
-            var yaml = File.ReadAllText(configPath);
-            var deserializer = new DeserializerBuilder()
-                .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                .Build();
+            var json = File.ReadAllText(configPath);
+            var config = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.AppConfig);
             
-            var config = deserializer.Deserialize<AppConfig>(yaml);
+            if (config == null)
+            {
+                Logger.LogWarning("Configuration deserialized to null, using default configuration");
+                return CreateDefaultConfig();
+            }
+            
             Logger.LogInfo($"Configuration loaded from {configPath}");
             LogConfigValues(config);
             
@@ -52,25 +64,16 @@ public static class ConfigManager
     }
 
     /// <summary>
-    /// Saves configuration to config.yaml
+    /// Saves configuration to config.json
     /// </summary>
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Configuration is saved at startup before AOT compilation affects runtime behavior")]
     public static void SaveConfig(AppConfig config)
     {
         var configPath = Path.Combine(AppContext.BaseDirectory, ConfigFileName);
         
         try
         {
-            var serializer = new SerializerBuilder()
-                .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                .Build();
-            
-            var yaml = serializer.Serialize(config);
-            
-            // Add comments to the YAML file
-            var yamlWithComments = AddConfigComments(yaml);
-            
-            File.WriteAllText(configPath, yamlWithComments);
+            var json = JsonSerializer.Serialize(config, ConfigJsonContext.Default.AppConfig);
+            File.WriteAllText(configPath, json);
             Logger.LogInfo($"Configuration saved to {configPath}");
         }
         catch (Exception ex)
@@ -99,46 +102,6 @@ public static class ConfigManager
                 OpenWeather = ""
             }
         };
-    }
-
-    /// <summary>
-    /// Adds helpful comments to the generated YAML
-    /// </summary>
-    private static string AddConfigComments(string yaml)
-    {
-        var lines = new List<string>
-        {
-            "# TSW6 Realtime Weather Configuration",
-            "# This file controls various aspects of the weather synchronization",
-            "",
-            "# Weather update settings",
-            yaml,
-            "",
-            "# Notes:",
-            "# - weather.update_threshold_km: Distance in kilometers before fetching new weather data",
-            "#   Recommended: 10-50 km depending on how often you want weather updates",
-            "#",
-            "# - update.location_check_interval_seconds: How often to check player location",
-            "#   Recommended: 30-120 seconds for balance between accuracy and performance",
-            "#",
-            "# - retry.max_retries: Maximum number of retry attempts for failed HTTP requests",
-            "#   Default: 5 retries with exponential backoff",
-            "#",
-            "# - retry.initial_delay_ms: Initial delay before first retry in milliseconds",
-            "#   Subsequent retries use exponential backoff (e.g., 100ms, 200ms, 400ms, 800ms, 1600ms)",
-            "#",
-            "# - logging.level: Minimum logging level (Debug, Information, Warning, Error)",
-            "#   Debug: Verbose logging for troubleshooting",
-            "#   Information: Standard operational logging (recommended)",
-            "#   Warning: Only warnings and errors",
-            "#   Error: Only errors",
-            "#",
-            "# - api_keys.openweather: Your OpenWeather API key",
-            "#   Leave empty to use WeatherApiKey.txt file instead",
-            "#   Get a free key at: https://openweathermap.org/api"
-        };
-        
-        return string.Join(Environment.NewLine, lines);
     }
 
     /// <summary>

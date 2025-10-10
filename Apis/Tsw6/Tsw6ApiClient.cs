@@ -17,9 +17,8 @@ public class Tsw6ApiClient
 
     public Tsw6ApiClient(string apiKey, RetryConfig? retryConfig = null)
     {
-        retryConfig ??= new RetryConfig(); // Use defaults if not provided
+        retryConfig ??= new RetryConfig();
         
-        // Configure handler with shorter connection lifetimes to avoid connection aborts
         var handler = new SocketsHttpHandler
         {
             UseCookies = false,
@@ -36,12 +35,10 @@ public class Tsw6ApiClient
             Timeout = TimeSpan.FromSeconds(30)
         };
         
-        // Add the API key header to all requests automatically
         _httpClient.DefaultRequestHeaders.Add("DTGCommKey", apiKey);
         _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
         _httpClient.DefaultRequestHeaders.ConnectionClose = true;
         
-        // Configure retry policy with exponential backoff
         _retryPipeline = new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
@@ -74,7 +71,6 @@ public class Tsw6ApiClient
     {
         try
         {
-            // Generate a random subscription ID if we don't have one
             if (!_subscriptionId.HasValue)
             {
                 _subscriptionId = (ushort)Random.Shared.Next(1, ushort.MaxValue + 1);
@@ -133,7 +129,7 @@ public class Tsw6ApiClient
             });
             
             Logger.LogInfo($"Subscription {_subscriptionId} deregistered successfully");
-            _subscriptionId = null; // Clear the subscription ID after successful deregistration
+            _subscriptionId = null;
             return true;
         }
         catch (HttpRequestException ex)

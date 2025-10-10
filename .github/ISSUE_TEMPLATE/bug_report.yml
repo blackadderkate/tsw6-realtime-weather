@@ -69,11 +69,14 @@ body:
     id: config
     attributes:
       label: Configuration
-      description: Your config.yaml settings (remove API key!)
-      render: yaml
+      description: Your config.json settings (remove API key!)
+      render: json
       placeholder: |
-        weather:
-          update_threshold_km: 10.0
+        {
+          "weather": {
+            "update_threshold_km": 10.0
+          }
+        }
         update:
           location_check_interval_seconds: 10
 

@@ -1,0 +1,18 @@
+{
+  "weather": {
+    "update_threshold_km": 10.0
+  },
+  "update": {
+    "location_check_interval_seconds": 60
+  },
+  "retry": {
+    "max_retries": 5,
+    "initial_delay_ms": 100
+  },
+  "logging": {
+    "level": "Information"
+  },
+  "api_keys": {
+    "openweather": ""
+  }
+}

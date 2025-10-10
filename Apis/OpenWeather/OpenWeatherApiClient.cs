@@ -36,7 +36,6 @@ public class OpenWeatherApiClient
 
         _httpClient.DefaultRequestHeaders.ConnectionClose = true;
 
-        // Configure retry pipeline
         var maxRetries = retryConfig?.MaxRetries ?? 5;
         var initialDelay = retryConfig?.InitialDelayMs ?? 100;
 

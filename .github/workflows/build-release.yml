@@ -37,7 +37,7 @@ jobs:
         Copy-Item ./publish/tsw6-realtime-weather.exe ./release/
         
         # Copy config template
-        Copy-Item ./config.yaml ./release/config.yaml
+        Copy-Item ./config.json ./release/config.json
         
         # Copy README
         Copy-Item ./README.md ./release/
@@ -48,7 +48,7 @@ jobs:
         ====================================
         
         1. Make sure Train Sim World 6 is installed
-        2. Edit config.yaml and add your OpenWeather API key:
+        2. Edit config.json and add your OpenWeather API key:
            - Get a free API key from: https://openweathermap.org/api
            - Update the 'openweather' field under 'api_keys'
         
