@@ -1,0 +1,24 @@
+# TSW6 Real-time Weather Configuration File
+# 
+# This file controls the behavior of the weather synchronization system.
+
+# Weather update settings
+weather:
+  # Distance threshold in kilometers before fetching new weather data
+  # Recommended: 10-50 km (higher values = fewer API calls but less accurate weather)
+  # Default: 10.0
+  update_threshold_km: 10.0
+
+# Update timing settings  
+update:
+  # How often to check player location in seconds
+  # Recommended: 30-120 seconds (lower values = more responsive but higher CPU usage)
+  # Default: 60
+  location_check_interval_seconds: 10
+
+# API Keys
+api_keys:
+  # OpenWeather API key (optional - will fall back to WeatherApiKey.txt if not provided)
+  # Get your free API key at: https://openweathermap.org/api
+  # Leave empty to use WeatherApiKey.txt file
+  openweather: ""

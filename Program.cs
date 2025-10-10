@@ -1,5 +1,6 @@
 ﻿using Tsw6RealtimeWeather.Apis.OpenWeather;
 using Tsw6RealtimeWeather.Apis.Tsw6;
+using Tsw6RealtimeWeather.Configuration;
 using Tsw6RealtimeWeather.Weather;
 
 namespace Tsw6RealtimeWeather
@@ -27,11 +28,15 @@ namespace Tsw6RealtimeWeather
 
         private static async Task RunApplicationAsync()
         {
+            // Load configuration
+            Logger.LogInfo("Loading configuration from config.yaml...");
+            var config = ConfigManager.LoadConfig();
+
             Logger.LogInfo("Searching for TSW6 API key...");
             var tsw6ApiKey = Tsw6ApiKey.Get();
 
             Logger.LogInfo("Searching for OpenWeather API key...");
-            var weatherApiKey = OpenWeatherApiKey.Get();
+            var weatherApiKey = OpenWeatherApiKey.Get(config.ApiKeys.OpenWeather);
 
             if (string.IsNullOrEmpty(tsw6ApiKey))
             {
@@ -60,11 +65,12 @@ namespace Tsw6RealtimeWeather
                 return;
             }
 
-            var weather = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient());
+            var weather = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient(), config);
             await weather.InitialiseAsync();
 
-            // Main update loop - runs every 1 minute
-            Logger.LogInfo("Starting weather update loop (every 1 minute). Press Ctrl+C to exit.");
+            // Main update loop - uses configured interval
+            var intervalSeconds = config.Update.LocationCheckIntervalSeconds;
+            Logger.LogInfo($"Starting weather update loop (every {intervalSeconds} seconds). Press Ctrl+C to exit.");
             var cancellationTokenSource = new CancellationTokenSource();
             Console.CancelKeyPress += (sender, e) =>
             {
@@ -79,7 +85,7 @@ namespace Tsw6RealtimeWeather
                 {
                     Logger.LogInfo("Updating weather...");
                     await weather.UpdatePlayerLocationAsync();
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationTokenSource.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), cancellationTokenSource.Token);
                 }
                 catch (OperationCanceledException)
                 {

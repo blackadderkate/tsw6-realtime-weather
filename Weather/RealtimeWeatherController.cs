@@ -1,25 +1,28 @@
 using Tsw6RealtimeWeather.Apis.OpenWeather;
 using Tsw6RealtimeWeather.Apis.Tsw6;
+using Tsw6RealtimeWeather.Configuration;
 
 namespace Tsw6RealtimeWeather.Weather;
 
 internal class RealtimeWeatherController
 {
-    private const double WeatherUpdateThresholdKm = 10.0; // Update weather every 10km
-    
+    private readonly double _weatherUpdateThresholdKm;
     private readonly Tsw6ApiClient _tsw6ApiClient;
     private readonly OpenWeatherApiClient _openWeatherApiClient;
     private PlayerLocation _playerLocation;
     private PlayerLocation _lastWeatherUpdateLocation;
     private double _accumulatedDistanceKm;
 
-    public RealtimeWeatherController(Tsw6ApiClient tsw6ApiClient, OpenWeatherApiClient openWeatherApiClient)
+    public RealtimeWeatherController(Tsw6ApiClient tsw6ApiClient, OpenWeatherApiClient openWeatherApiClient, AppConfig config)
     {
         _tsw6ApiClient = tsw6ApiClient;
         _openWeatherApiClient = openWeatherApiClient;
+        _weatherUpdateThresholdKm = config.Weather.UpdateThresholdKm;
         _playerLocation = PlayerLocation.Default();
         _lastWeatherUpdateLocation = PlayerLocation.Default();
         _accumulatedDistanceKm = 0.0;
+        
+        Logger.LogInfo($"Weather controller initialized with {_weatherUpdateThresholdKm} km update threshold");
     }
 
     internal async Task InitialiseAsync()
@@ -67,9 +70,9 @@ internal class RealtimeWeatherController
             }
             
             // Check if we've crossed the weather update threshold
-            if (_accumulatedDistanceKm >= WeatherUpdateThresholdKm)
+            if (_accumulatedDistanceKm >= _weatherUpdateThresholdKm)
             {
-                Logger.LogInfo($"Accumulated distance ({_accumulatedDistanceKm:F2} km) exceeded threshold ({WeatherUpdateThresholdKm} km) - updating weather");
+                Logger.LogInfo($"Accumulated distance ({_accumulatedDistanceKm:F2} km) exceeded threshold ({_weatherUpdateThresholdKm} km) - updating weather");
                 await UpdateWeatherDataAsync(newPlayerLocation);
                 
                 // Reset accumulated distance and update last weather location
