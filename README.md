@@ -5,29 +5,21 @@ Synchronizes real-world weather conditions with Train Sim World 6 based on your 
 
 ## Example Output
 
-```
-Status Checks
-┌─────────────────────┬────────┐
-│ Check               │ Status │
-├─────────────────────┼────────┤
-│ TSW6 Connection     │ ✓      │
-│ API Keys            │ ✓      │
-│ Subscription Active │ ✓      │
-└─────────────────────┴────────┘
+![TSW6 Weather Screenshot](Images/TSW6Weather.png)
 
-Weather Information
-📍 Location: London, GB
-☁️  Condition: Clouds - overcast clouds
-🌡️  Temperature: 12.5°C (feels like 11.8°C)
-   Min/Max: 11.2°C / 13.8°C
-💧 Humidity: 78%
-🔽 Pressure: 1015 hPa
-💨 Wind: 18.5 km/h SW
-☁️  Cloudiness: 90%
-👁️  Visibility: 10.0 km
-🌅 Sunrise: 06:45 | 🌇 Sunset: 18:32
-⏰ Updated: 2025-10-10 14:23:15
-```
+The application displays two main panels:
+- **Distance Panel**: Shows your current location coordinates and travel progress with a visual progress bar
+- **Weather Panel**: Displays comprehensive weather information with color-coded values and emoji indicators
+
+⚠️ **Warning messages** only appear when there are issues that need attention (missing API keys, TSW6 not connected, etc.)
+
+## Download
+
+### Stable Releases
+Download the [latest stable release](https://github.com/GarethLowe/tsw6-realtime-weather/releases/latest) for the most tested version.
+
+### Development Builds
+Want the absolute latest features? Download the [`dev-latest` pre-release](https://github.com/GarethLowe/tsw6-realtime-weather/releases/tag/dev-latest) (automatically updated on every commit to main).
 
 ## Setup
 
@@ -116,45 +108,56 @@ For backward compatibility, you can still use a `WeatherApiKey.txt` file instead
 Priority: The application checks `config.yaml` first, then falls back to `WeatherApiKey.txt`.
 
 ## Features
-- 🌦️  **Real-time weather data** from OpenWeather API based on your exact train location
+- 🌦️  **Real-time weather synchronization** - Fetches weather from OpenWeather API and updates TSW6 game weather
 - 📍 **Automatic location tracking** via TSW6 HTTP API
-- 🚂 **Distance-based updates** - weather refreshes after traveling configured distance (default: 10km)
-- 📊 **Rich terminal UI** with live status updates, progress tracking, and weather display
-- ⚙️  **Configurable everything** - update intervals, thresholds, logging levels, retry behavior
-- 🔄 **HTTP retry resilience** - automatic recovery from network issues with exponential backoff
-- 📝 **Comprehensive logging** - file and console logging with configurable verbosity
-- 🎯 **Native AOT compilation** - small executable size, no .NET runtime required
+- 🚂 **Distance-based updates** - Weather refreshes after traveling configured distance (default: 10km)
+- 📊 **Clean terminal UI** - Compact display with distance tracking and detailed weather information
+- 🎨 **Color-coded display** - Temperature colors from blue (cold) to red (hot), dynamic wind and cloud colors
+- ⚠️  **Smart warnings** - Status messages only appear when issues need attention
+- ⚙️  **Fully configurable** - Update intervals, distance thresholds, logging levels, retry behavior
+- 🔄 **HTTP retry resilience** - Automatic recovery from network issues with exponential backoff
+- 📝 **Comprehensive logging** - File and console logging with configurable verbosity
+- 🎯 **Native AOT compilation** - 14.5MB executable, no .NET runtime required
 
 ### Weather Information Displayed
-- Current conditions (sunny, rainy, cloudy, etc.) with emoji indicators
-- Temperature (current, feels like, min/max) in Celsius
-- Humidity and atmospheric pressure
-- Wind speed and direction with gusts
-- Precipitation (rain/snow) intensity
-- Cloud coverage percentage
-- Visibility distance
-- Sunrise and sunset times
-- Location name and country
+- 📍 Location (city name and country)
+- 🌤️  Current conditions with weather emoji (sunny ☀️, rainy 🌧️, cloudy ☁️, etc.)
+- 🌡️  **Temperature** - Color-coded from blue (freezing) through green (comfortable) to red (hot)
+- ☁️  **Cloud cover** - Percentage with dynamic colors
+- 🌧️  **Precipitation** - Rain and snow intensity when present
+- 💨 **Wind** - Speed, direction (N/NE/E/etc.), and gusts with color coding
+- 💧 **Humidity** | 🔽 **Pressure** | 👁️ **Visibility** - All on one compact line
+- ⏰ Last update timestamp
 
 ## How It Works
-1. The application connects to the TSW6 HTTP API to monitor player location
-2. As you play, it tracks your movement distance using the Haversine formula
-3. When you've traveled the configured threshold distance (default: 10km), it fetches current weather data from OpenWeather
-4. The weather data is synchronized with Train Sim World 6
+1. The application connects to the TSW6 HTTP API (localhost:31270) to monitor your position in-game
+2. As you drive your train, it tracks your movement distance using the Haversine formula
+3. When you've traveled the configured threshold distance (default: 10km):
+   - Fetches current weather data from OpenWeather API based on your exact coordinates
+   - Converts the weather data to TSW6 format (temperature, cloudiness, precipitation, wetness, ground snow, fog density)
+   - Updates the TSW6 game weather via PATCH requests to the HTTP API
+4. The real-world weather now matches your in-game environment!
 
 ## Troubleshooting
 
-### "No TSW6 API Key found"
-Make sure you launched Train Sim World 6 with the `-HTTPAPI` flag. You can add this to your Steam launch options.
+### Warning: "TSW6 not connected"
+Make sure you launched Train Sim World 6 with the `-HTTPAPI` flag. You can add this to your Steam launch options:
+1. Right-click TSW6 in Steam → Properties
+2. Under Launch Options, add: `-HTTPAPI`
+3. Launch the game, then run the application
 
-### "TSW6 HTTP Server isn't accessible"
-- Verify TSW6 is running
-- Verify you used the `-HTTPAPI` launch flag
-- Check that no firewall is blocking localhost connections
+### Warning: "API keys not found"
+- Add your OpenWeather API key to `config.yaml` under `api_keys.openweather`, OR
+- Create a `WeatherApiKey.txt` file in the same folder as the executable with your API key
 
-### "No OpenWeather API Key found"
-- Add your API key to `config.yaml` under `api_keys.openweather`, OR
-- Create a `WeatherApiKey.txt` file with your API key
+### Warning: "Subscription not active"
+This means the TSW6 HTTP API subscription hasn't been established yet. Simply start driving your train and the subscription will activate automatically.
+
+### Weather not updating in-game
+- Verify you can see weather changes in the application's Weather panel
+- Check the logs for any PATCH request errors
+- Try restarting TSW6 with the `-HTTPAPI` flag
+- Make sure no firewall is blocking localhost connections
 
 ## Building from Source
 

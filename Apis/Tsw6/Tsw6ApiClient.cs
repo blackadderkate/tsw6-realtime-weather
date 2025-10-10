@@ -289,4 +289,76 @@ public class Tsw6ApiClient
             return false;
         }
     }
+
+    /// <summary>
+    /// Updates the weather in TSW6
+    /// </summary>
+    /// <param name="weatherData">The weather data to apply</param>
+    /// <returns>True if weather was updated successfully, false otherwise</returns>
+    public async Task<bool> UpdateWeatherAsync(Tsw6WeatherData weatherData)
+    {
+        try
+        {
+            // Update each weather parameter individually via PATCH requests
+            var success = true;
+            
+            success &= await SetWeatherValueAsync("WeatherManager.Temperature", weatherData.Temperature);
+            success &= await SetWeatherValueAsync("WeatherManager.Cloudiness", weatherData.Cloudiness);
+            success &= await SetWeatherValueAsync("WeatherManager.Precipitation", weatherData.Precipitation);
+            success &= await SetWeatherValueAsync("WeatherManager.Wetness", weatherData.Wetness);
+            success &= await SetWeatherValueAsync("WeatherManager.GroundSnow", weatherData.GroundSnow);
+            success &= await SetWeatherValueAsync("WeatherManager.FogDensity", weatherData.FogDensity);
+            
+            if (success)
+            {
+                Logger.LogInfo($"Weather updated in TSW6: Temp={weatherData.Temperature:F1}°C, " +
+                              $"Cloud={weatherData.Cloudiness:F2}, Precip={weatherData.Precipitation:F2}");
+            }
+            
+            return success;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error updating weather: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a single weather value via PATCH request with query string parameter
+    /// </summary>
+    /// <param name="path">The weather parameter path (e.g., "WeatherManager.Temperature")</param>
+    /// <param name="value">The value to set</param>
+    /// <returns>True if successful, false otherwise</returns>
+    private async Task<bool> SetWeatherValueAsync(string path, double value)
+    {
+        try
+        {
+            return await ExecuteWithRetryAsync(async () =>
+            {
+                // Send PATCH with value as query string parameter
+                var requestUri = $"/set/{path}?Value={value}";
+                var response = await _httpClient.PatchAsync(requestUri, null);
+                response.EnsureSuccessStatusCode();
+                
+                Logger.LogDebug($"Set {path} = {value:F3}");
+                return true;
+            });
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError($"Failed to set {path} after retries: {ex.Message}");
+            return false;
+        }
+        catch (TaskCanceledException ex)
+        {
+            Logger.LogError($"Setting {path} timed out after retries: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error setting {path}: {ex.Message}");
+            return false;
+        }
+    }
 }

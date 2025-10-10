@@ -83,7 +83,7 @@ internal class RealtimeWeatherController
     }
 
     /// <summary>
-    /// Fetches weather data for the given location and updates the UI
+    /// Fetches weather data for the given location and updates both UI and TSW6
     /// </summary>
     private async Task UpdateWeatherDataAsync(PlayerLocation location)
     {
@@ -103,7 +103,20 @@ internal class RealtimeWeatherController
             // Pass structured weather data to UI
             _ui.UpdateWeather(weatherData);
             
-            Logger.LogInfo($"Weather updated successfully: {weatherData.Weather?[0]?.Main} - {weatherData.Main?.Temp}K");
+            // Convert OpenWeather data to TSW6 format
+            var tsw6Weather = WeatherConverter.ConvertToTsw6Weather(weatherData);
+            
+            // Update TSW6 with the new weather
+            var updateSuccess = await _tsw6ApiClient.UpdateWeatherAsync(tsw6Weather);
+            
+            if (updateSuccess)
+            {
+                Logger.LogInfo($"Weather synchronized to TSW6: {weatherData.Weather?[0]?.Main} - {weatherData.Main?.Temp}K");
+            }
+            else
+            {
+                Logger.LogWarning("Failed to update weather in TSW6, but UI was updated");
+            }
         }
         catch (Exception ex)
         {

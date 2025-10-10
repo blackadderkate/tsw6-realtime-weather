@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Spectre.Console;
 using Tsw6RealtimeWeather.Apis.OpenWeather.Models;
+using YamlDotNet.Core;
 
 namespace Tsw6RealtimeWeather.UI;
 
@@ -11,7 +13,6 @@ namespace Tsw6RealtimeWeather.UI;
 public class ConsoleUI
 {
     private Layout? _layout;
-    private Table? _statusTable;
     private Panel? _distancePanel;
     private Panel? _weatherPanel;
     
@@ -38,18 +39,14 @@ public class ConsoleUI
         
         AnsiConsole.MarkupLine("[dim]Real-time weather sync for Train Sim World 6[/]\n");
         
-        // Create the layout with adjusted proportions
+        // Create the layout - only Distance and Weather columns
         _layout = new Layout("Root")
-            .SplitRows(
-                new Layout("Status"),
-                new Layout("Main").SplitColumns(
-                    new Layout("Distance"),
-                    new Layout("Weather")
-                )
+            .SplitColumns(
+                new Layout("Distance"),
+                new Layout("Weather")
             );
         
-        // Set more compact proportions
-        _layout["Status"].Size(7);  // Reduced from 10
+        // Set proportions
         _layout["Distance"].Size(50);
         _layout["Weather"].Size(50);
         
@@ -111,19 +108,17 @@ public class ConsoleUI
     {
         if (_layout == null) return;
 
-        // Create compact status table
-        _statusTable = new Table()
-            .Border(TableBorder.Rounded)
-            .BorderColor(Color.Grey)
-            .AddColumn(new TableColumn("TSW6 Key"))
-            .AddColumn(new TableColumn("TSW6 Subscription"))
-            .AddColumn(new TableColumn("Open Weather Subscription"));
-
-        _statusTable.AddRow(
-            _tsw6Connected ? "[green]✓[/]" : "[red]✗[/]",
-            _apiKeysFound ? "[green]✓[/]" : "[red]✗[/]",
-            _subscriptionActive ? "[green]✓[/]" : "[red]✗[/]"
-        );
+        // Show warnings only if there are issues
+        List<string> warnings = new List<string>();
+        
+        if (!_tsw6Connected)
+            warnings.Add("⚠ TSW6 not connected - Start TSW6 with -HTTPAPI flag");
+        
+        if (!_apiKeysFound)
+            warnings.Add("⚠ API keys not found - Check config.yaml");
+        
+        if (!_subscriptionActive && _tsw6Connected)
+            warnings.Add("⚠ Subscription not active - Drive the train to activate");
 
         // Create compact distance panel with progress bar
         var distancePercentage = Math.Min((_accumulatedDistance / _distanceThreshold) * 100.0, 100.0);
@@ -170,13 +165,6 @@ public class ConsoleUI
             .BorderColor(Color.Cyan1);
 
         // Update layout
-        _layout["Status"].Update(
-            new Panel(_statusTable)
-                .Header("[green]Status[/]")
-                .Border(BoxBorder.Rounded)
-                .BorderColor(Color.Green)
-        );
-        
         _layout["Distance"].Update(_distancePanel);
         _layout["Weather"].Update(_weatherPanel);
 
@@ -190,6 +178,16 @@ public class ConsoleUI
                 .Color(Color.Cyan1));
         
         AnsiConsole.MarkupLine("[dim]Real-time weather sync for Train Sim World 6[/]\n");
+        
+        // Show warnings if there are any issues
+        if (warnings.Count > 0)
+        {
+            foreach (var warning in warnings)
+            {
+                AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(warning)}[/]");
+            }
+            AnsiConsole.WriteLine();
+        }
         
         AnsiConsole.Write(_layout);
         
@@ -206,7 +204,7 @@ public class ConsoleUI
         if (!string.IsNullOrEmpty(weather.Name))
         {
             grid.AddRow(
-                new Markup("[bold cyan]📍[/]"),
+                new Markup("[bold]Location:[/]"),
                 new Markup($"{Markup.Escape(weather.Name)}, {weather.Sys?.Country ?? "??"}")
             );
         }
@@ -217,20 +215,20 @@ public class ConsoleUI
             var condition = weather.Weather[0];
             var emoji = GetWeatherEmoji(condition.Id);
             grid.AddRow(
-                new Markup($"[bold]{emoji}[/]"),
+                new Markup($"[bold]Conditions:[/]"),
                 new Markup($"{Markup.Escape(condition.Main ?? "Unknown")} - {Markup.Escape(condition.Description ?? "")}")
             );
         }
 
-        // Temperature - more compact
+        // Temperature - color coded based on temperature
         if (weather.Main != null)
         {
             var tempC = weather.Main.Temp - 273.15;
-            var feelsLikeC = weather.Main.FeelsLike - 273.15;
+            var tempColor = GetTemperatureColor(tempC);
             
             grid.AddRow(
-                new Markup("[bold yellow]🌡️[/]"),
-                new Markup($"[yellow]{tempC:F1}°C[/]")
+                new Markup("[bold]Temperature[/]"),
+                new Markup($"[{tempColor}]{tempC:F1}°C[/]")
             );
         }
 
@@ -246,7 +244,7 @@ public class ConsoleUI
             };
             
             grid.AddRow(
-                new Markup("[bold]☁️[/]"),
+                new Markup("[bold]Cloud cover:[/]"),
                 new Markup($"[{cloudColor}]{weather.Clouds.All}%[/]")
             );
         }
@@ -255,14 +253,14 @@ public class ConsoleUI
         if (weather.Rain != null && weather.Rain.OneHour.HasValue && weather.Rain.OneHour.Value > 0)
         {
             grid.AddRow(
-                new Markup("[bold blue]🌧️[/]"),
+                new Markup("[bold]Rain:[/]"),
                 new Markup($"[blue]{weather.Rain.OneHour.Value:F1} mm/h[/]")
             );
         }
         else if (weather.Snow != null && weather.Snow.OneHour.HasValue && weather.Snow.OneHour.Value > 0)
         {
             grid.AddRow(
-                new Markup("[bold white]❄️[/]"),
+                new Markup("[bold]Snow:[/]"),
                 new Markup($"[white]{weather.Snow.OneHour.Value:F1} mm/h[/]")
             );
         }
@@ -283,7 +281,7 @@ public class ConsoleUI
             var windText = $"[{windStrength}]{windSpeedKmh:F1} km/h {windDir}[/]";
             
             grid.AddRow(
-                new Markup("[bold]�[/]"),
+                new Markup("[bold]Wind:[/]"),
                 new Markup(windText)
             );
         }
@@ -291,25 +289,24 @@ public class ConsoleUI
         // Additional Info - single compact line
         if (weather.Main != null)
         {
-            var infoText = $"💧{weather.Main.Humidity}% | 🔽{weather.Main.Pressure}hPa";
-            
+           
             if (weather.Visibility.HasValue)
             {
                 var visibilityKm = weather.Visibility.Value / 1000.0;
-                infoText += $" | 👁️{visibilityKm:F1}km";
-            }
-            
-            grid.AddRow(
-                new Markup(""),
+                var infoText = $"{visibilityKm:F1}km";
+
+                grid.AddRow(
+                new Markup("[bold]Visibility:[/]"),
                 new Markup($"[dim]{infoText}[/]")
             );
+            }
         }
 
         // Last Update - compact
         var lastUpdate = DateTimeOffset.FromUnixTimeSeconds(weather.Dt).ToLocalTime();
         grid.AddRow(
-            new Markup("[dim]⏰[/]"),
-            new Markup($"[dim]{lastUpdate:HH:mm:ss}[/]")
+            new Markup("[bold]Last updated:[/]"),
+            new Markup($"{lastUpdate:HH:mm:ss}")
         );
 
         return grid;
@@ -335,6 +332,32 @@ public class ConsoleUI
         var directions = new[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
         var index = (int)Math.Round(((degrees % 360) / 45.0)) % 8;
         return directions[index];
+    }
+
+    private static string GetTemperatureColor(double tempC)
+    {
+        return tempC switch
+        {
+            // Freezing and below - blue shades
+            < -10 => "blue",           // Very cold: < -10°C
+            < 0 => "dodgerblue1",      // Cold: -10°C to 0°C
+            
+            // Cool - cyan/teal shades
+            < 10 => "cyan",            // Cool: 0°C to 10°C
+            < 15 => "aqua",            // Mild cool: 10°C to 15°C
+            
+            // Comfortable - green shades
+            < 20 => "green",           // Comfortable: 15°C to 20°C
+            < 25 => "greenyellow",     // Warm: 20°C to 25°C
+            
+            // Hot - yellow/orange shades
+            < 30 => "yellow",          // Hot: 25°C to 30°C
+            < 35 => "orange1",         // Very hot: 30°C to 35°C
+            
+            // Extreme heat - red shades
+            < 40 => "red",             // Extremely hot: 35°C to 40°C
+            _ => "red1"                // Dangerously hot: 40°C+
+        };
     }
 
     public static async Task ShowStartupProgress(Func<Task<bool>> tsw6Check, Func<Task<bool>> subscriptionSetup)

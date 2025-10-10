@@ -1,16 +1,38 @@
 # Release Process
 
-This document describes how to create a new release of TSW6 Realtime Weather.
+This document describes how to create releases of TSW6 Realtime Weather.
 
-## Automated Release (Recommended)
+## Automated Release System
 
-The project uses GitHub Actions to automatically build and package releases.
+The project uses GitHub Actions for continuous deployment with two types of releases:
 
-### Steps
+### 1. Development Builds (Automatic)
 
-1. **Update version information** (if applicable)
-   - Update any version strings in the code or documentation
-   - Commit and push changes to main branch
+**Every push to `main` automatically creates a development build.**
+
+- **Tag**: `dev-latest` (automatically updated)
+- **Type**: Pre-release
+- **Purpose**: Testing and development
+- **Contains**: Latest changes from the main branch
+
+No action needed - just push to main:
+```bash
+git push origin main
+```
+
+The workflow will automatically:
+- Build the AOT executable
+- Package with config and documentation
+- Update the `dev-latest` release
+
+### 2. Stable Releases (Tag-based)
+
+**Create stable releases by pushing version tags.**
+
+1. **Prepare for release**
+   - Ensure all changes are committed and pushed to main
+   - Update version information if needed in documentation
+   - Verify the `dev-latest` build is working correctly
 
 2. **Create and push a version tag**
    ```bash
@@ -18,31 +40,31 @@ The project uses GitHub Actions to automatically build and package releases.
    git push origin v1.0.0
    ```
 
-3. **GitHub Actions will automatically:**
-   - Build the project with AOT compilation
-   - Create a release package with:
-     - Native Windows x64 executable
+3. **GitHub Actions automatically:**
+   - Builds with AOT compilation
+   - Creates release package with:
+     - Native Windows x64 executable (~14.5MB)
      - Configuration template (config.yaml)
      - Documentation (README.md)
      - Quick start guide (QUICKSTART.txt)
-   - Create a GitHub Release with the ZIP file attached
-   - Generate release notes
+   - Creates a GitHub Release with ZIP file
+   - Generates release notes from commits
+   - Marks as the latest stable release
 
-4. **Review the release**
-   - Go to the GitHub Releases page
-   - Verify the build succeeded
+4. **Review and publish**
+   - Release is automatically published
    - Edit release notes if needed
-   - Publish if it was created as draft
+   - Verify the build succeeded
 
-## Manual Release
+## Manual Workflow Trigger
 
-You can also trigger a release manually without creating a tag:
+You can manually trigger a build without pushing:
 
-1. Go to the **Actions** tab on GitHub
-2. Select **Build and Release** workflow
-3. Click **Run workflow**
-4. The build will run and create an artifact (but not a release)
-5. Download the artifact from the workflow run
+1. Go to **Actions** → **Build and Release**
+2. Click **Run workflow**
+3. Select the branch to build
+4. Click **Run workflow**
+5. Artifacts will be available in the workflow run
 
 ## Manual Build (Local)
 
