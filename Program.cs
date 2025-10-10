@@ -4,8 +4,7 @@ using Tsw6RealtimeWeather.Weather;
 
 namespace Tsw6RealtimeWeather
 {
-
-    class Tsw6RealtimeWeather
+    internal class Program
     {
         private static Tsw6ApiClient? _tsw6ApiClient;
 
@@ -62,7 +61,7 @@ namespace Tsw6RealtimeWeather
             }
 
             var weather = new RealtimeWeatherController(_tsw6ApiClient, new OpenWeatherApiClient());
-            await weather.Initialise();
+            await weather.InitialiseAsync();
 
             // Main update loop - runs every 1 minute
             Logger.LogInfo("Starting weather update loop (every 1 minute). Press Ctrl+C to exit.");
@@ -79,7 +78,7 @@ namespace Tsw6RealtimeWeather
                 try
                 {
                     Logger.LogInfo("Updating weather...");
-                    await weather.UpdateWeatherAsync();
+                    await weather.UpdatePlayerLocationAsync();
                     await Task.Delay(TimeSpan.FromMinutes(1), cancellationTokenSource.Token);
                 }
                 catch (OperationCanceledException)
@@ -122,7 +121,5 @@ namespace Tsw6RealtimeWeather
             Logger.LogError($"Unhandled exception: {e.ExceptionObject}");
             CleanupAsync().GetAwaiter().GetResult();
         }
-
     }
-
 }

@@ -6,14 +6,11 @@ namespace Tsw6RealtimeWeather.Apis.Tsw6;
 public class Tsw6ApiClient
 {
     private readonly HttpClient _httpClient;
-    private readonly string _apiKey;
     private ushort? _subscriptionId;
 
     public Tsw6ApiClient(string apiKey)
     {
-        _apiKey = apiKey;
-        
-        // Configure handler to disable Nagle's algorithm for faster response times
+        // Configure handler to disable Nagle's algorithm and DNS lookup for faster response times
         var handler = new SocketsHttpHandler
         {
             // Disable Nagle's algorithm - send data immediately without buffering

@@ -5,46 +5,65 @@ namespace Tsw6RealtimeWeather.Weather;
 
 internal class RealtimeWeatherController
 {
-    private readonly Tsw6ApiClient tsw6ApiClient;
-    private readonly OpenWeatherApiClient openWeatherApiClient;
+    private readonly Tsw6ApiClient _tsw6ApiClient;
+    private readonly OpenWeatherApiClient _openWeatherApiClient;
+    private PlayerLocation _playerLocation;
 
     public RealtimeWeatherController(Tsw6ApiClient tsw6ApiClient, OpenWeatherApiClient openWeatherApiClient)
     {
-        this.tsw6ApiClient = tsw6ApiClient;
-        this.openWeatherApiClient = openWeatherApiClient;
+        _tsw6ApiClient = tsw6ApiClient;
+        _openWeatherApiClient = openWeatherApiClient;
+        _playerLocation = PlayerLocation.Default();
     }
 
-    internal async Task Initialise()
+    internal async Task InitialiseAsync()
     {
-        await tsw6ApiClient.RegisterSubscription();
+        await _tsw6ApiClient.RegisterSubscription();
     }
 
-    internal async Task UpdateWeatherAsync()
+    internal async Task UpdatePlayerLocationAsync()
     {
-        var location = await ReadPlayerLocationAsync();
+        var newPlayerLocation = await ReadPlayerLocationAsync();
         
-        if (!location.HasValue)
+        if (newPlayerLocation == null)
         {
             Logger.LogWarning("Could not retrieve player location - skipping weather update");
             return;
         }
 
-        var (latitude, longitude) = location.Value;
-        Logger.LogInfo($"Player location: Lat={latitude:F6}, Lon={longitude:F6}");
+        // Calculate distance travelled since last update
+        var distanceMeters = _playerLocation.DistanceToInMeters(newPlayerLocation);
+        var distanceKm = _playerLocation.DistanceToInKilometers(newPlayerLocation);
+        
+        Logger.LogInfo($"Player location: {newPlayerLocation}");
+        
+        if (distanceMeters > 0.1) // Only log if moved more than 10cm
+        {
+            if (distanceKm >= 1.0)
+            {
+                Logger.LogInfo($"Distance travelled: {distanceKm:F2} km");
+            }
+            else
+            {
+                Logger.LogInfo($"Distance travelled: {distanceMeters:F1} m");
+            }
+        }
+        
+        _playerLocation = newPlayerLocation;
         
         // TODO: Call OpenWeather API with latitude and longitude
-        // var weatherData = await openWeatherApiClient.GetWeatherAsync(latitude, longitude);
+        // var weatherData = await _openWeatherApiClient.GetWeatherAsync(newPlayerLocation.Latitude, newPlayerLocation.Longitude);
     }
 
     /// <summary>
-    /// Reads the player's current geographic location and returns it as a simple (latitude, longitude) pair
+    /// Reads the player's current geographic location
     /// </summary>
-    /// <returns>A tuple containing (latitude, longitude) as doubles, or null if the location cannot be determined</returns>
-    internal async Task<(double Latitude, double Longitude)?> ReadPlayerLocationAsync()
+    /// <returns>A PlayerLocation object, or null if the location cannot be determined</returns>
+    internal async Task<PlayerLocation?> ReadPlayerLocationAsync()
     {
         try
         {
-            var subscriptionData = await tsw6ApiClient.ReadPlayerInformationAsync();
+            var subscriptionData = await _tsw6ApiClient.ReadPlayerInformationAsync();
             
             if (subscriptionData == null)
             {
@@ -77,7 +96,7 @@ internal class RealtimeWeatherController
 
             Logger.LogDebug($"Player location: Latitude={latitude}, Longitude={longitude}");
             
-            return (latitude, longitude);
+            return new PlayerLocation(latitude, longitude);
         }
         catch (Exception ex)
         {
