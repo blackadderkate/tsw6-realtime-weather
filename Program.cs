@@ -79,7 +79,7 @@ namespace Tsw6RealtimeWeather
                 {
                     Logger.LogInfo("Updating weather...");
                     await weather.UpdatePlayerLocationAsync();
-                    await Task.Delay(TimeSpan.FromMinutes(1), cancellationTokenSource.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationTokenSource.Token);
                 }
                 catch (OperationCanceledException)
                 {
