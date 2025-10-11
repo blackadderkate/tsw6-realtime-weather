@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 using Tsw6RealtimeWeather.Apis.OpenWeather.Models;
+using Tsw6RealtimeWeather.Apis.Tsw6.Models;
 
 namespace Tsw6RealtimeWeather.UI;
 
@@ -11,42 +13,53 @@ namespace Tsw6RealtimeWeather.UI;
 /// </summary>
 public class ConsoleUI
 {
-    private Layout? _layout;
     private Panel? _distancePanel;
-    private Panel? _weatherPanel;
+    private Panel? _realWeatherPanel;
+    private Panel? _gameWeatherPanel;
+    private Rows? _mainDisplay;
     
     private double _accumulatedDistance = 0.0;
     private double _distanceThreshold = 10.0;
     private string _currentLocation = "Unknown";
     private string _weatherInfo = "Waiting for first update...";
     private OpenWeatherResponse? _currentWeather = null;
+    private Tsw6WeatherData? _gameWeatherState = null;
     
     private bool _tsw6Connected = false;
     private bool _apiKeysFound = false;
     private bool _subscriptionActive = false;
 
+    private Task? _liveDisplayTask = null;
+    private LiveDisplayContext? _liveContext = null;
+
     public void Initialize(double distanceThreshold)
     {
         _distanceThreshold = distanceThreshold;
-        AnsiConsole.Clear();
         
-        AnsiConsole.Write(
-            new FigletText("TSW6 Weather")
-                .LeftJustified()
-                .Color(Color.Cyan1));
+        // Create initial display
+        _mainDisplay = new Rows(new Text("Initializing..."));
         
-        AnsiConsole.MarkupLine("[dim]Real-time weather sync for Train Sim World 6[/]\n");
+        // Start live display in background
+        _liveDisplayTask = Task.Run(() =>
+        {
+            AnsiConsole.Live(_mainDisplay)
+                .AutoClear(false)
+                .Overflow(VerticalOverflow.Visible)
+                .Start(ctx =>
+                {
+                    _liveContext = ctx;
+                    UpdateDisplay();
+                    
+                    // Keep the live display running
+                    while (true)
+                    {
+                        Task.Delay(100).Wait();
+                    }
+                });
+        });
         
-        _layout = new Layout("Root")
-            .SplitColumns(
-                new Layout("Distance"),
-                new Layout("Weather")
-            );
-        
-        _layout["Distance"].Size(50);
-        _layout["Weather"].Size(50);
-        
-        UpdateDisplay();
+        // Give it a moment to start
+        Task.Delay(100).Wait();
     }
 
     public void UpdateStatusChecks(bool tsw6Connected, bool apiKeysFound, bool subscriptionActive)
@@ -85,6 +98,12 @@ public class ConsoleUI
         UpdateDisplay();
     }
 
+    public void UpdateGameWeather(Tsw6WeatherData? gameWeather)
+    {
+        _gameWeatherState = gameWeather;
+        UpdateDisplay();
+    }
+
     public void ShowError(string message)
     {
         AnsiConsole.MarkupLine($"[red]✗[/] {Markup.Escape(message)}");
@@ -102,9 +121,7 @@ public class ConsoleUI
 
     private void UpdateDisplay()
     {
-        if (_layout == null) return;
-
-        List<string> warnings = new List<string>();
+        List<string> warnings = [];
         
         if (!_tsw6Connected)
             warnings.Add("⚠ TSW6 not connected - Start TSW6 with -HTTPAPI flag");
@@ -118,7 +135,7 @@ public class ConsoleUI
         var distancePercentage = Math.Min((_accumulatedDistance / _distanceThreshold) * 100.0, 100.0);
         
         var progressChart = new BreakdownChart()
-            .Width(50)
+            .Width(100)
             .ShowPercentage()
             .UseValueFormatter(value => $"{value:F1}%")
             .AddItem("Travelled", distancePercentage, Color.Green)
@@ -130,61 +147,86 @@ public class ConsoleUI
         );
 
         _distancePanel = new Panel(distanceContent)
-            .Header("[yellow]Distance[/]")
+            .Header("[yellow]Distance Progress[/]")
             .Border(BoxBorder.Rounded)
-            .BorderColor(Color.Yellow);
+            .BorderColor(Color.Yellow)
+            .Padding(1, 1, 1, 1);
 
-        Spectre.Console.Rendering.IRenderable weatherContent;
+        IRenderable realWeatherContent;
         
         if (_currentWeather != null)
         {
-            weatherContent = CreateWeatherDisplay(_currentWeather);
+            realWeatherContent = CreateWeatherDisplay(_currentWeather);
         }
         else if (!string.IsNullOrEmpty(_weatherInfo))
         {
-            weatherContent = new Markup($"[dim]{Markup.Escape(_weatherInfo)}[/]");
+            realWeatherContent = new Markup($"[dim]{Markup.Escape(_weatherInfo)}[/]");
         }
         else
         {
-            weatherContent = new Markup("[dim]Waiting for first update...[/]");
+            realWeatherContent = new Markup("[dim]Waiting for first update...[/]");
         }
         
-        _weatherPanel = new Panel(weatherContent)
-            .Header("[cyan]Weather[/]")
+        _realWeatherPanel = new Panel(realWeatherContent)
+            .Header("[cyan]Real-World Weather[/]")
             .Border(BoxBorder.Rounded)
-            .BorderColor(Color.Cyan1);
+            .BorderColor(Color.Cyan1)
+            .Padding(1, 1, 1, 1);
 
-        _layout["Distance"].Update(_distancePanel);
-        _layout["Weather"].Update(_weatherPanel);
+        IRenderable gameWeatherContent;
+        
+        if (_gameWeatherState != null)
+        {
+            gameWeatherContent = CreateGameWeatherDisplay(_gameWeatherState);
+        }
+        else
+        {
+            gameWeatherContent = new Markup("[dim]No game weather data yet...[/]");
+        }
 
-        AnsiConsole.Clear();
+        _gameWeatherPanel = new Panel(gameWeatherContent)
+            .Header("[green]In-Game Weather (TSW6)[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(Color.Green)
+            .Padding(1, 1, 1, 1);
         
-        AnsiConsole.Write(
-            new FigletText("TSW6 Weather")
-                .LeftJustified()
-                .Color(Color.Cyan1));
+        var weatherTable = new Table()
+            .Border(TableBorder.None)
+            .HideHeaders()
+            .AddColumn(new TableColumn("Real").Width(50))
+            .AddColumn(new TableColumn("Game").Width(50));
         
-        AnsiConsole.MarkupLine("[dim]Real-time weather sync for Train Sim World 6[/]\n");
+        weatherTable.AddRow(_realWeatherPanel, _gameWeatherPanel);
+
+        // Build the complete display
+        var rows = new List<IRenderable>();
         
         if (warnings.Count > 0)
         {
             foreach (var warning in warnings)
             {
-                AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(warning)}[/]");
+                rows.Add(new Markup($"[yellow]{Markup.Escape(warning)}[/]"));
             }
-            AnsiConsole.WriteLine();
+            rows.Add(new Text("")); // Empty line
         }
         
-        AnsiConsole.Write(_layout);
+        rows.Add(_distancePanel);
+        rows.Add(new Text("")); // Empty line
+        rows.Add(weatherTable);
+        rows.Add(new Text("")); // Empty line
+        rows.Add(new Markup("[dim]Ctrl+C to exit[/]"));
         
-        AnsiConsole.MarkupLine("\n[dim]Ctrl+C to exit[/]");
+        var fullDisplay = new Rows(rows);
+        
+        // Update the live display
+        _liveContext?.UpdateTarget(fullDisplay);
     }
 
-    private Spectre.Console.Rendering.IRenderable CreateWeatherDisplay(OpenWeatherResponse weather)
+    private static Grid CreateWeatherDisplay(OpenWeatherResponse weather)
     {
         var grid = new Grid()
-            .AddColumn(new GridColumn().NoWrap().PadRight(1))
-            .AddColumn(new GridColumn());
+            .AddColumn(new GridColumn().NoWrap().PadRight(1).Width(16))
+            .AddColumn(new GridColumn().Width(30));
 
         if (!string.IsNullOrEmpty(weather.Name))
         {
@@ -197,7 +239,6 @@ public class ConsoleUI
         if (weather.Weather != null && weather.Weather.Count > 0)
         {
             var condition = weather.Weather[0];
-            var emoji = GetWeatherEmoji(condition.Id);
             grid.AddRow(
                 new Markup($"[bold]Conditions:[/]"),
                 new Markup($"{Markup.Escape(condition.Main ?? "Unknown")} - {Markup.Escape(condition.Description ?? "")}")
@@ -246,23 +287,21 @@ public class ConsoleUI
             );
         }
 
-        if (weather.Wind != null)
+        if (weather.Main != null)
         {
-            var windSpeedKmh = weather.Wind.Speed * 3.6;
-            var windDir = GetWindDirection(weather.Wind.Deg);
-            var windStrength = windSpeedKmh switch
+            var humidity = weather.Main.Humidity;
+            var humidityColor = humidity switch
             {
-                >= 50 => "red",
-                >= 30 => "orange1",
-                >= 15 => "yellow",
-                _ => "green"
+                >= 80 => "blue",
+                >= 60 => "cyan",
+                >= 40 => "green",
+                >= 20 => "yellow",
+                _ => "orange1"
             };
             
-            var windText = $"[{windStrength}]{windSpeedKmh:F1} km/h {windDir}[/]";
-            
             grid.AddRow(
-                new Markup("[bold]Wind:[/]"),
-                new Markup(windText)
+                new Markup("[bold]Humidity:[/]"),
+                new Markup($"[{humidityColor}]{humidity}%[/]")
             );
         }
 
@@ -291,26 +330,68 @@ public class ConsoleUI
         return grid;
     }
 
-    private string GetWeatherEmoji(int conditionId)
+    private static Grid CreateGameWeatherDisplay(Tsw6WeatherData gameWeather)
     {
-        return conditionId switch
-        {
-            >= 200 and < 300 => "⛈️",  // Thunderstorm
-            >= 300 and < 400 => "🌦️",  // Drizzle
-            >= 500 and < 600 => "🌧️",  // Rain
-            >= 600 and < 700 => "❄️",  // Snow
-            >= 700 and < 800 => "🌫️",  // Atmosphere (mist, fog, etc.)
-            800 => "☀️",                // Clear
-            >= 801 and < 900 => "☁️",  // Clouds
-            _ => "🌤️"                  // Default
-        };
-    }
+        var grid = new Grid()
+            .AddColumn(new GridColumn().NoWrap().PadRight(1).Width(16))
+            .AddColumn(new GridColumn().Width(10));
 
-    private string GetWindDirection(int degrees)
-    {
-        var directions = new[] { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
-        var index = (int)Math.Round(((degrees % 360) / 45.0)) % 8;
-        return directions[index];
+        // Temperature
+        var tempColor = GetTemperatureColor(gameWeather.Temperature);
+        grid.AddRow(
+            new Markup("[bold]Temperature:[/]"),
+            new Markup($"[{tempColor}]{gameWeather.Temperature:F1}°C[/]")
+        );
+
+        // Cloudiness (0-1 converted to percentage)
+        var cloudPercentage = gameWeather.Cloudiness * 100.0;
+        var cloudColor = cloudPercentage switch
+        {
+            >= 80 => "grey",
+            >= 50 => "silver",
+            >= 20 => "white",
+            _ => "cyan"
+        };
+        grid.AddRow(
+            new Markup("[bold]Cloud cover:[/]"),
+            new Markup($"[{cloudColor}]{cloudPercentage:F0}%[/]")
+        );
+
+        // Precipitation (0-1 scale) - always show
+        var precipPercentage = gameWeather.Precipitation * 100.0;
+        grid.AddRow(
+            new Markup("[bold]Precipitation:[/]"),
+            new Markup($"[blue]{precipPercentage:F0}%[/]")
+        );
+
+        // Wetness (0-1 scale)
+        var wetnessPercentage = gameWeather.Wetness * 100.0;
+        grid.AddRow(
+            new Markup("[bold]Wetness:[/]"),
+            new Markup($"[aqua]{wetnessPercentage:F0}%[/]")
+        );
+
+        // Ground Snow (0-1 scale) - always show
+        var snowPercentage = gameWeather.GroundSnow * 100.0;
+        grid.AddRow(
+            new Markup("[bold]Ground snow:[/]"),
+            new Markup($"[white]{snowPercentage:F0}%[/]")
+        );
+
+        // Fog Density (0-0.1 scale, display as 0-100%) - always show
+        var fogPercentage = (gameWeather.FogDensity / 0.1) * 100.0;
+        grid.AddRow(
+            new Markup("[bold]Fog density:[/]"),
+            new Markup($"[grey]{fogPercentage:F0}%[/]")
+        );
+
+        // Current time
+        grid.AddRow(
+            new Markup("[bold]Last updated:[/]"),
+            new Markup($"{DateTime.Now:HH:mm:ss}")
+        );
+
+        return grid;
     }
 
     private static string GetTemperatureColor(double tempC)

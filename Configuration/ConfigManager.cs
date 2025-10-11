@@ -91,11 +91,12 @@ public static class ConfigManager
         {
             Weather = new WeatherConfig
             {
-                UpdateThresholdKm = 10.0
+                UpdateThresholdKm = 5.0,
+                TransitionDurationSeconds = 30
             },
             Update = new UpdateConfig
             {
-                LocationCheckIntervalSeconds = 60
+                LocationCheckIntervalSeconds = 5
             },
             ApiKeys = new ApiKeysConfig
             {
@@ -110,6 +111,7 @@ public static class ConfigManager
     private static void LogConfigValues(AppConfig config)
     {
         Logger.LogInfo($"  Weather update threshold: {config.Weather.UpdateThresholdKm} km");
+        Logger.LogInfo($"  Weather transition duration: {config.Weather.TransitionDurationSeconds} seconds");
         Logger.LogInfo($"  Location check interval: {config.Update.LocationCheckIntervalSeconds} seconds");
         Logger.LogInfo($"  HTTP max retries: {config.Retry.MaxRetries}");
         Logger.LogInfo($"  HTTP initial delay: {config.Retry.InitialDelayMs} ms");

@@ -6,19 +6,27 @@ The application is configured via `config.json` file in the same directory as th
 
 ### Weather Settings
 
-**`weather.update_threshold_km`** (default: `10.0`)
+**`weather.update_threshold_km`** (default: `5.0`)
 - Distance in kilometers the player must travel before new weather data is fetched
 - Lower values = more accurate weather but more API calls
-- Recommended range: 10-50 km
+- Recommended range: 5-50 km
 - Example: `"update_threshold_km": 25.0` to update every 25 km
+
+**`weather.transition_duration_seconds`** (default: `30`)
+- Duration in seconds for smooth weather transitions
+- Weather values (temperature, clouds, etc.) are gradually interpolated over this time
+- Updates TSW6 every second during the transition for smooth changes
+- Lower values = faster weather changes, higher values = more gradual
+- Recommended range: 15-60 seconds
+- Example: `"transition_duration_seconds": 45` for slower, more realistic transitions
 
 ### Update Timing
 
-**`update.location_check_interval_seconds`** (default: `60`)
+**`update.location_check_interval_seconds`** (default: `5`)
 - How often (in seconds) the application checks the player's location
 - Lower values = more responsive but higher CPU usage
-- Recommended range: 30-120 seconds
-- Example: `"location_check_interval_seconds": 45` to check every 45 seconds
+- Recommended range: 5-60 seconds
+- Example: `"location_check_interval_seconds": 10` to check every 10 seconds
 
 ### HTTP Retry Settings
 
@@ -57,10 +65,11 @@ The application is configured via `config.json` file in the same directory as th
 ```json
 {
   "weather": {
-    "update_threshold_km": 15.0
+    "update_threshold_km": 5.0,
+    "transition_duration_seconds": 30
   },
   "update": {
-    "location_check_interval_seconds": 45
+    "location_check_interval_seconds": 5
   },
   "retry": {
     "max_retries": 5,

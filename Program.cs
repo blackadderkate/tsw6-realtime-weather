@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Spectre.Console;
 using Tsw6RealtimeWeather.Apis.OpenWeather;
 using Tsw6RealtimeWeather.Apis.Tsw6;
 using Tsw6RealtimeWeather.Configuration;
@@ -36,8 +37,13 @@ namespace Tsw6RealtimeWeather
             
             Logger.Initialize(config.Logging.Level);
 
-            _ui = new ConsoleUI();
-            _ui.Initialize(config.Weather.UpdateThresholdKm);
+            // Show title before starting interactive displays
+            AnsiConsole.Clear();
+            AnsiConsole.Write(
+                new FigletText("TSW6 Weather")
+                    .LeftJustified()
+                    .Color(Color.Cyan1));
+            AnsiConsole.MarkupLine("[dim]Real-time weather sync for Train Sim World 6[/]\n");
 
             Logger.LogInfo("Searching for TSW6 API key...");
             var tsw6ApiKey = Tsw6ApiKey.Get();
@@ -68,6 +74,7 @@ namespace Tsw6RealtimeWeather
                 openWeatherApiClient = new OpenWeatherApiClient(weatherApiKey, config.Retry);
             }
             
+            // Run startup progress before initializing live display
             await ConsoleUI.ShowStartupProgress(
                 async () => {
                     tsw6Connected = await _tsw6ApiClient.IsApiAvailableAsync();
@@ -76,12 +83,7 @@ namespace Tsw6RealtimeWeather
                 async () => {
                     if (tsw6Connected)
                     {
-                        var weather = new RealtimeWeatherController(_tsw6ApiClient, openWeatherApiClient, config, _ui);
                         subscriptionActive = await _tsw6ApiClient.RegisterSubscription();
-                        if (subscriptionActive)
-                        {
-                            await weather.InitialiseAsync();
-                        }
                     }
                     return subscriptionActive;
                 }
@@ -90,10 +92,15 @@ namespace Tsw6RealtimeWeather
             if (!tsw6Connected)
             {
                 Logger.LogError("TSW6 HTTP Server isn't accessible, check TSW6 is running with the -HTTPAPI flag set.");
-                _ui.UpdateStatusChecks(false, apiKeysFound, false);
+                AnsiConsole.MarkupLine("[red]✗[/] Cannot continue without TSW6 connection.");
                 await Task.Delay(3000);
                 return;
             }
+
+            // Now initialize the live display UI
+            _ui = new ConsoleUI();
+            _ui.Initialize(config.Weather.UpdateThresholdKm);
+            _ui.UpdateStatusChecks(tsw6Connected, apiKeysFound, subscriptionActive);
 
             var weatherController = new RealtimeWeatherController(_tsw6ApiClient, openWeatherApiClient, config, _ui);
             await weatherController.InitialiseAsync();

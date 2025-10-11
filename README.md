@@ -37,18 +37,25 @@ The application uses a `config.json` file for configuration. On first run, a def
 ### Configuration Options
 
 #### Weather Settings
-- **`weather.update_threshold_km`** (default: 10.0)
+- **`weather.update_threshold_km`** (default: 5.0)
   - Distance in kilometers the player must travel before new weather data is fetched
   - Lower values = more accurate weather but more API calls
-  - Recommended range: 10-50 km
-  - Example: `update_threshold_km: 25.0` to update every 25 km
+  - Recommended range: 5-50 km
+  - Example: `"update_threshold_km": 25.0` to update every 25 km
+
+- **`weather.transition_duration_seconds`** (default: 30)
+  - Duration in seconds for smooth weather transitions
+  - Weather values gradually interpolate over this time
+  - Lower values = faster changes, higher values = more gradual
+  - Recommended range: 15-60 seconds
+  - Example: `"transition_duration_seconds": 45` for slower transitions
 
 #### Update Timing
-- **`update.location_check_interval_seconds`** (default: 60)
+- **`update.location_check_interval_seconds`** (default: 5)
   - How often (in seconds) the application checks the player's location
   - Lower values = more responsive but higher CPU usage
-  - Recommended range: 30-120 seconds
-  - Example: `location_check_interval_seconds: 45` to check every 45 seconds
+  - Recommended range: 5-60 seconds
+  - Example: `"location_check_interval_seconds": 10` to check every 10 seconds
 
 #### HTTP Retry Settings
 - **`retry.max_retries`** (default: 5)
@@ -83,10 +90,11 @@ The application uses a `config.json` file for configuration. On first run, a def
 ```json
 {
   "weather": {
-    "update_threshold_km": 15.0
+    "update_threshold_km": 5.0,
+    "transition_duration_seconds": 30
   },
   "update": {
-    "location_check_interval_seconds": 45
+    "location_check_interval_seconds": 5
   },
   "retry": {
     "max_retries": 5,
@@ -108,12 +116,13 @@ Priority: The application checks `config.json` first, then falls back to `Weathe
 
 ## Features
 - 🌦️  **Real-time weather synchronization** - Fetches weather from OpenWeather API and updates TSW6 game weather
+- 🎬 **Smooth weather transitions** - Gradual interpolation between weather states over configurable duration (default: 30s)
 - 📍 **Automatic location tracking** via TSW6 HTTP API
-- 🚂 **Distance-based updates** - Weather refreshes after traveling configured distance (default: 10km)
+- 🚂 **Distance-based updates** - Weather refreshes after traveling configured distance (default: 5km)
 - 📊 **Clean terminal UI** - Compact display with distance tracking and detailed weather information
 - 🎨 **Color-coded display** - Temperature colors from blue (cold) to red (hot), dynamic wind and cloud colors
 - ⚠️  **Smart warnings** - Status messages only appear when issues need attention
-- ⚙️  **Fully configurable** - Update intervals, distance thresholds, logging levels, retry behavior
+- ⚙️  **Fully configurable** - Update intervals, distance thresholds, transition duration, logging levels, retry behavior
 - 🔄 **HTTP retry resilience** - Automatic recovery from network issues with exponential backoff
 - 📝 **Comprehensive logging** - File and console logging with configurable verbosity
 - 🎯 **Native AOT compilation** - 14.5MB executable, no .NET runtime required
@@ -131,11 +140,12 @@ Priority: The application checks `config.json` first, then falls back to `Weathe
 ## How It Works
 1. The application connects to the TSW6 HTTP API (localhost:31270) to monitor your position in-game
 2. As you drive your train, it tracks your movement distance using the Haversine formula
-3. When you've traveled the configured threshold distance (default: 10km):
+3. When you've traveled the configured threshold distance (default: 5km):
    - Fetches current weather data from OpenWeather API based on your exact coordinates
    - Converts the weather data to TSW6 format (temperature, cloudiness, precipitation, wetness, ground snow, fog density)
-   - Updates the TSW6 game weather via PATCH requests to the HTTP API
-4. The real-world weather now matches your in-game environment!
+   - Smoothly transitions to the new weather over the configured duration (default: 30 seconds)
+   - Updates TSW6 every second during the transition with interpolated values for realistic changes
+4. The real-world weather gradually transitions in your in-game environment!
 
 ## Troubleshooting
 

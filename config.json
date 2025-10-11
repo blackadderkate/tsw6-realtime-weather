@@ -1,9 +1,10 @@
 {
   "weather": {
-    "update_threshold_km": 10.0
+    "update_threshold_km": 5.0,
+    "transition_duration_seconds": 30
   },
   "update": {
-    "location_check_interval_seconds": 60
+    "location_check_interval_seconds": 5
   },
   "retry": {
     "max_retries": 5,

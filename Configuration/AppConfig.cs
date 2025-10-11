@@ -44,10 +44,16 @@ public class AppConfig
 public class WeatherConfig
 {
     /// <summary>
-    /// Distance threshold in kilometers before updating weather (default: 10.0 km)
+    /// Distance threshold in kilometers before updating weather (default: 5.0 km)
     /// </summary>
     [JsonPropertyName("update_threshold_km")]
-    public double UpdateThresholdKm { get; set; } = 10.0;
+    public double UpdateThresholdKm { get; set; } = 5.0;
+
+    /// <summary>
+    /// Duration in seconds for smooth weather transitions (default: 30 seconds)
+    /// </summary>
+    [JsonPropertyName("transition_duration_seconds")]
+    public int TransitionDurationSeconds { get; set; } = 30;
 }
 
 /// <summary>
@@ -56,10 +62,10 @@ public class WeatherConfig
 public class UpdateConfig
 {
     /// <summary>
-    /// Delay in seconds between player location checks (default: 60 seconds)
+    /// Delay in seconds between player location checks (default: 5 seconds)
     /// </summary>
     [JsonPropertyName("location_check_interval_seconds")]
-    public int LocationCheckIntervalSeconds { get; set; } = 60;
+    public int LocationCheckIntervalSeconds { get; set; } = 5;
 }
 
 /// <summary>

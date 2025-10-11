@@ -22,12 +22,11 @@ public static class Logger
         // Parse the log level string
         var minimumLevel = ParseLogLevel(logLevel);
         
-        // Configure Serilog to write to both console and file
+        // Configure Serilog to write to file only (not console to avoid UI conflicts)
         var logFilePath = Path.Combine(AppContext.BaseDirectory, "TSW6RealtimeWeather.log");
         
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Is(minimumLevel)
-            .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.File(
                 logFilePath,
                 outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss}] [{Level:u3}] {Message:lj}{NewLine}{Exception}",

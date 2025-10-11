@@ -14,6 +14,7 @@ internal class RealtimeWeatherController
     private readonly OpenWeatherApiClient? _openWeatherApiClient;
     private readonly ConsoleUI _ui;
     private readonly bool _hasWeatherApiKey;
+    private readonly WeatherStateTracker _weatherStateTracker;
     private PlayerLocation _playerLocation;
     private PlayerLocation _lastWeatherUpdateLocation;
     private double _accumulatedDistanceKm;
@@ -24,6 +25,7 @@ internal class RealtimeWeatherController
         _openWeatherApiClient = openWeatherApiClient;
         _ui = ui;
         _weatherUpdateThresholdKm = config.Weather.UpdateThresholdKm;
+        _weatherStateTracker = new WeatherStateTracker(tsw6ApiClient, config.Weather.TransitionDurationSeconds, ui);
         _playerLocation = PlayerLocation.Default();
         _lastWeatherUpdateLocation = PlayerLocation.Default();
         _accumulatedDistanceKm = 0.0;
@@ -36,6 +38,7 @@ internal class RealtimeWeatherController
         else
         {
             Logger.LogInfo($"Weather controller initialized with {_weatherUpdateThresholdKm} km update threshold");
+            Logger.LogInfo($"Weather transitions will occur over {config.Weather.TransitionDurationSeconds} seconds");
         }
     }
 
@@ -114,16 +117,9 @@ internal class RealtimeWeatherController
             
             var tsw6Weather = WeatherConverter.ConvertToTsw6Weather(weatherData);
             
-            var updateSuccess = await _tsw6ApiClient.UpdateWeatherAsync(tsw6Weather);
+            await _weatherStateTracker.TransitionToWeatherAsync(tsw6Weather);
             
-            if (updateSuccess)
-            {
-                Logger.LogInfo($"Weather synchronized to TSW6: {weatherData.Weather?[0]?.Main} - {weatherData.Main?.Temp}K");
-            }
-            else
-            {
-                Logger.LogWarning("Failed to update weather in TSW6, but UI was updated");
-            }
+            Logger.LogInfo($"Weather transition started: {weatherData.Weather?[0]?.Main} - {weatherData.Main?.Temp}K");
         }
         catch (Exception ex)
         {
