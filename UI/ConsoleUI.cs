@@ -378,8 +378,8 @@ public class ConsoleUI
             new Markup($"[white]{snowPercentage:F0}%[/]")
         );
 
-        // Fog Density (0-0.1 scale, display as 0-100%) - always show
-        var fogPercentage = (gameWeather.FogDensity / 0.1) * 100.0;
+        // Fog Density (0-0.25 scale, display as 0-100%) - always show
+        var fogPercentage = (gameWeather.FogDensity / 0.025) * 100.0;
         grid.AddRow(
             new Markup("[bold]Fog density:[/]"),
             new Markup($"[grey]{fogPercentage:F0}%[/]")

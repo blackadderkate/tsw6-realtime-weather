@@ -67,7 +67,7 @@ public static class WeatherConverter
         // Fog density based on visibility (under 1km = heavy fog, 10km+ = clear)
         if (openWeather.Visibility.HasValue)
         {
-            const double visibilityLowerBound = 0.05;
+            const double visibilityLowerBound = 0.025;
             double visibilityKm = openWeather.Visibility.Value / 1000.0;
             
             if (visibilityKm >= 10)
