@@ -41,10 +41,10 @@ public static class WeatherConverter
         
         tsw6Weather.Precipitation = Math.Clamp(precipitationMmh / 10.0, 0, 1);
 
-        // Wetness: weighted combination of precipitation (70%) and humidity (30%)
+        // Wetness: weighted combination of precipitation (80%) and humidity (20%)
         double humidityFactor = openWeather.Main?.Humidity / 100.0 ?? 0;
         tsw6Weather.Wetness = Math.Clamp(
-            (tsw6Weather.Precipitation * 0.7) + (humidityFactor * 0.3),
+            (tsw6Weather.Precipitation * 0.8) + (humidityFactor * 0.2),
             0, 
             1
         );
@@ -67,6 +67,7 @@ public static class WeatherConverter
         // Fog density based on visibility (under 1km = heavy fog, 10km+ = clear)
         if (openWeather.Visibility.HasValue)
         {
+            const double visibilityLowerBound = 0.05;
             double visibilityKm = openWeather.Visibility.Value / 1000.0;
             
             if (visibilityKm >= 10)
@@ -75,11 +76,11 @@ public static class WeatherConverter
             }
             else if (visibilityKm <= 1)
             {
-                tsw6Weather.FogDensity = 0.1;
+                tsw6Weather.FogDensity = visibilityLowerBound;
             }
             else
             {
-                tsw6Weather.FogDensity = 0.1 * (1 - ((visibilityKm - 1) / 9.0));
+                tsw6Weather.FogDensity = visibilityLowerBound * (1 - ((visibilityKm - 1) / 9.0));
             }
         }
         else
