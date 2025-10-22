@@ -4,6 +4,7 @@ using System.Linq;
 using GameFinder.RegistryUtils;
 using GameFinder.StoreHandlers.Steam;
 using GameFinder.StoreHandlers.Steam.Models.ValueTypes;
+using System.Runtime.InteropServices;
 using NMFS = NexusMods.Paths.FileSystem;
 
 namespace Tsw6RealtimeWeather.Apis.Tsw6;
@@ -37,9 +38,31 @@ public class Tsw6ApiKey
 
     private static string TryToGetApiKeyFromDocuments()
     {
+        var prefix = "";
+        bool isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+
+        if (isLinux) {
+           prefix = Path.Join(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.UserProfile),
+                    ".steam",
+                    "steam",
+                    "steamapps",
+                    "compatdata",
+                    tsw6AppId.ToString(),
+                 "pfx",
+                 "drive_c",
+                 "users",
+                 "steamuser",
+                 "Documents");
+        }
+        else {
+            prefix = Environment.GetFolderPath(
+            Environment.SpecialFolder.MyDocuments);
+        }
+
         var searchPathForNonDevelopmentMode = Path.Join(
-        Environment.GetFolderPath(
-            Environment.SpecialFolder.MyDocuments),
+            prefix,
             "My Games",
             "TrainSimWorld6",
             "Saved",
