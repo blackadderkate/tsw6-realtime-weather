@@ -1,119 +1,360 @@
 using System;
-using System.IO;
-using System.Linq;
-using GameFinder.RegistryUtils;
-using GameFinder.StoreHandlers.Steam;
-using GameFinder.StoreHandlers.Steam.Models.ValueTypes;
-using System.Runtime.InteropServices;
-using NMFS = NexusMods.Paths.FileSystem;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
+using Polly;
+using Polly.Retry;
+using Tsw6RealtimeWeather.Apis.Tsw6.Models;
+using Tsw6RealtimeWeather.Configuration;
 
 namespace Tsw6RealtimeWeather.Apis.Tsw6;
 
-public class Tsw6ApiKey
+public class Tsw6ApiClient
 {
-    private const string tsw6ApiKeyFileName = "CommAPIKey.txt";
-    private const uint tsw6AppId = 3656800;
+    private readonly HttpClient _httpClient;
+    private readonly ResiliencePipeline _retryPipeline;
+    private ushort? _subscriptionId;
 
-    private static string apiKey = string.Empty;
-
-    private static bool cachedApiKey = false;
-
-    public static string Get()
+    public Tsw6ApiClient(string apiKey, RetryConfig? retryConfig = null)
     {
-        if (cachedApiKey)
+        retryConfig ??= new RetryConfig();
+        
+        var handler = new SocketsHttpHandler
         {
-            return apiKey;
-        }
-
-        apiKey = TryToGetApiKeyFromDocuments();
-
-        if (string.IsNullOrWhiteSpace(apiKey))
+            UseCookies = false,
+            PooledConnectionLifetime = TimeSpan.FromSeconds(30),
+            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(10),
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            MaxConnectionsPerServer = 1,
+            EnableMultipleHttp2Connections = false
+        };
+        
+        _httpClient = new HttpClient(handler)
         {
-            apiKey = TryToGetApiKeyFromSteam();
-        }
-
-        cachedApiKey = true;
-        return apiKey;
-    }
-
-    private static string TryToGetApiKeyFromDocuments()
-    {
-        var prefix = "";
-        bool isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-
-        if (isLinux) {
-           prefix = Path.Join(
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.UserProfile),
-                    ".steam",
-                    "steam",
-                    "steamapps",
-                    "compatdata",
-                    tsw6AppId.ToString(),
-                 "pfx",
-                 "drive_c",
-                 "users",
-                 "steamuser",
-                 "Documents");
-        }
-        else {
-            prefix = Environment.GetFolderPath(
-            Environment.SpecialFolder.MyDocuments);
-        }
-
-        var searchPathForNonDevelopmentMode = Path.Join(
-            prefix,
-            "My Games",
-            "TrainSimWorld6",
-            "Saved",
-            "Config",
-            tsw6ApiKeyFileName);
-
-        if (File.Exists(searchPathForNonDevelopmentMode))
-        {
-            return File.ReadAllText(searchPathForNonDevelopmentMode);
-        }
-
-        return string.Empty;
-
-    }
-
-    private static string TryToGetApiKeyFromSteam()
-    {
-        // Search for the Steam title instead as we are in game mode.
-        var steamHandler = new SteamHandler(NMFS.Shared, OperatingSystem.IsWindows() ? WindowsRegistry.Shared : null);
-        var tsw6DeveloperAppId = AppId.From(tsw6AppId);
-        var tsw6Game = steamHandler.FindOneGameById(tsw6DeveloperAppId, out var errors);
-
-        if (errors.Length > 0)
-        {
-            foreach (var error in errors)
+            BaseAddress = new Uri("http://127.0.0.1:31270"),
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+        
+        _httpClient.DefaultRequestHeaders.Add("DTGCommKey", apiKey);
+        _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+        _httpClient.DefaultRequestHeaders.ConnectionClose = true;
+        
+        _retryPipeline = new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
             {
-                Logger.LogError($"Error in finding TSW6: {error}");
+                MaxRetryAttempts = retryConfig.MaxRetries,
+                Delay = TimeSpan.FromMilliseconds(retryConfig.InitialDelayMs),
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true,
+                OnRetry = args =>
+                {
+                    Logger.LogWarning($"HTTP request failed (attempt {args.AttemptNumber + 1}/{retryConfig.MaxRetries + 1}): {args.Outcome.Exception?.Message ?? "Unknown error"}");
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .Build();
+    }
+    
+    /// <summary>
+    /// Executes an HTTP operation with retry logic
+    /// </summary>
+    private async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> operation)
+    {
+        return await _retryPipeline.ExecuteAsync(async ct => await operation());
+    }
+
+    /// <summary>
+    /// Registers a subscription to DriverAid.PlayerInfo endpoint
+    /// </summary>
+    /// <returns>True if subscription was successful, false otherwise</returns>
+    public async Task<bool> RegisterSubscription()
+    {
+        try
+        {
+            if (!_subscriptionId.HasValue)
+            {
+                _subscriptionId = (ushort)Random.Shared.Next(1, ushort.MaxValue + 1);
             }
 
-            return string.Empty;
+            var requestUri = $"/subscription/DriverAid.PlayerInfo?Subscription={_subscriptionId}";
+            
+            await ExecuteWithRetryAsync(async () =>
+            {
+                var response = await _httpClient.PostAsync(requestUri, null);
+                response.EnsureSuccessStatusCode();
+                return true;
+            });
+            
+            Logger.LogInfo($"Subscription registered with ID: {_subscriptionId}");
+            return true;
         }
-
-        if (tsw6Game == null)
+        catch (HttpRequestException ex)
         {
-            Logger.LogError("Error: TSW6 is null.");
-            return string.Empty;
+            Logger.LogError($"Failed to register subscription after retries: {ex.Message}");
+            return false;
         }
-
-        var searchPathForDevelopmentMode = Path.Join(
-            tsw6Game.Path.ToString(),
-            "WindowsNoEditor",
-            "TS2Prototype",
-            "Saved",
-            "Config",
-            tsw6ApiKeyFileName);
-
-        if (!File.Exists(searchPathForDevelopmentMode))
+        catch (TaskCanceledException ex)
         {
-            return string.Empty;
+            Logger.LogError($"Subscription registration timed out: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error during subscription registration: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Deregisters the current subscription
+    /// </summary>
+    /// <returns>True if deregistration was successful, false otherwise</returns>
+    public async Task<bool> DeregisterSubscription()
+    {
+        if (!_subscriptionId.HasValue)
+        {
+            Logger.LogWarning("No subscription to deregister");
+            return false;
         }
 
-        return File.ReadAllText(searchPathForDevelopmentMode);
+        try
+        {
+            var requestUri = $"/subscription/?Subscription={_subscriptionId}";
+            
+            await ExecuteWithRetryAsync(async () =>
+            {
+                var response = await _httpClient.DeleteAsync(requestUri);
+                response.EnsureSuccessStatusCode();
+                return true;
+            });
+            
+            Logger.LogInfo($"Subscription {_subscriptionId} deregistered successfully");
+            _subscriptionId = null;
+            return true;
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError($"Failed to deregister subscription after retries: {ex.Message}");
+            return false;
+        }
+        catch (TaskCanceledException ex)
+        {
+            Logger.LogError($"Subscription deregistration timed out: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error during subscription deregistration: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets the current subscription ID
+    /// </summary>
+    /// <returns>The subscription ID, or null if not yet registered</returns>
+    public ushort? GetSubscriptionId() => _subscriptionId;
+
+    /// <summary>
+    /// Reads data from the current subscription
+    /// </summary>
+    /// <returns>The subscription data, or null if the request fails or no subscription is active</returns>
+    public async Task<Tsw6SubscriptionData?> ReadPlayerInformationAsync()
+    {
+        if (!_subscriptionId.HasValue)
+        {
+            Logger.LogWarning("No active subscription to read from");
+            return null;
+        }
+
+        try
+        {
+            var requestUri = $"/subscription?Subscription={_subscriptionId}";
+            
+            return await ExecuteWithRetryAsync(async () =>
+            {
+                var response = await _httpClient.GetAsync(requestUri);
+                response.EnsureSuccessStatusCode();
+                
+                var subscriptionData = await response.Content.ReadFromJsonAsync(Tsw6JsonContext.Default.Tsw6SubscriptionData);
+                return subscriptionData;
+            });
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError($"Failed to read subscription data after retries: {ex.Message}");
+            return null;
+        }
+        catch (TaskCanceledException ex)
+        {
+            Logger.LogError($"Subscription data read timed out: {ex.Message}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error reading subscription data: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets API information including metadata and available routes
+    /// </summary>
+    /// <returns>The API info object, or null if the request fails</returns>
+    public async Task<Tsw6ApiInfo?> GetApiInfoAsync()
+    {
+        try
+        {
+            return await ExecuteWithRetryAsync(async () =>
+            {
+                var response = await _httpClient.GetAsync("/info");
+                response.EnsureSuccessStatusCode();
+                
+                var apiInfo = await response.Content.ReadFromJsonAsync(Tsw6JsonContext.Default.Tsw6ApiInfo);
+                return apiInfo;
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Failed to get API info after retries: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Checks if the TSW6 API is reachable and returns valid metadata
+    /// </summary>
+    /// <returns>True if the API is reachable and returns valid TSW6 metadata, false otherwise</returns>
+    public async Task<bool> IsApiAvailableAsync()
+    {
+        try
+        {
+            var apiInfo = await GetApiInfoAsync();
+            
+            if (apiInfo == null)
+            {
+                Logger.LogError("Failed to retrieve API info");
+                return false;
+            }
+
+            // Validate Meta object exists
+            if (apiInfo.Meta == null)
+            {
+                Logger.LogError("API response missing 'Meta' property");
+                return false;
+            }
+
+            // Validate required fields
+            if (apiInfo.Meta.Worker != "DTGCommWorkerRC")
+            {
+                Logger.LogError($"Invalid Worker value: {apiInfo.Meta.Worker}");
+                return false;
+            }
+
+            if (apiInfo.Meta.GameName != "Train Sim World 6®")
+            {
+                Logger.LogError($"Invalid GameName value: {apiInfo.Meta.GameName}");
+                return false;
+            }
+
+            if (apiInfo.Meta.GameBuildNumber <= 0)
+            {
+                Logger.LogError("Invalid or missing GameBuildNumber");
+                return false;
+            }
+
+            if (apiInfo.Meta.APIVersion <= 0)
+            {
+                Logger.LogError("Invalid or missing APIVersion");
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(apiInfo.Meta.GameInstanceID))
+            {
+                Logger.LogError("Missing GameInstanceID");
+                return false;
+            }
+
+            Logger.LogInfo($"Connected to API with GameInstanceID {apiInfo.Meta.GameInstanceID} on version {apiInfo.Meta.GameBuildNumber}");
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"API availability check failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Updates the weather in TSW6
+    /// </summary>
+    /// <param name="weatherData">The weather data to apply</param>
+    /// <returns>True if weather was updated successfully, false otherwise</returns>
+    public async Task<bool> UpdateWeatherAsync(Tsw6WeatherData weatherData)
+    {
+        try
+        {
+            // Update each weather parameter individually via PATCH requests
+            var success = true;
+            
+            success &= await SetWeatherValueAsync("WeatherManager.Temperature", weatherData.Temperature);
+            success &= await SetWeatherValueAsync("WeatherManager.Cloudiness", weatherData.Cloudiness);
+            success &= await SetWeatherValueAsync("WeatherManager.Precipitation", weatherData.Precipitation);
+            success &= await SetWeatherValueAsync("WeatherManager.Wetness", weatherData.Wetness);
+            success &= await SetWeatherValueAsync("WeatherManager.GroundSnow", weatherData.GroundSnow);
+            success &= await SetWeatherValueAsync("WeatherManager.FogDensity", weatherData.FogDensity);
+            
+            if (success)
+            {
+                Logger.LogInfo($"Weather updated in TSW6: Temp={weatherData.Temperature:F1}°C, " +
+                              $"Cloud={weatherData.Cloudiness:F2}, Precip={weatherData.Precipitation:F2}");
+            }
+            
+            return success;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error updating weather: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets a single weather value via PATCH request with query string parameter
+    /// </summary>
+    /// <param name="path">The weather parameter path (e.g., "WeatherManager.Temperature")</param>
+    /// <param name="value">The value to set</param>
+    /// <returns>True if successful, false otherwise</returns>
+    private async Task<bool> SetWeatherValueAsync(string path, double value)
+    {
+        try
+        {
+            return await ExecuteWithRetryAsync(async () =>
+            {
+                // Send PATCH with value as query string parameter
+                var requestUri = $"/set/{path}?Value={value}";
+                var response = await _httpClient.PatchAsync(requestUri, null);
+                response.EnsureSuccessStatusCode();
+                
+                Logger.LogDebug($"Set {path} = {value:F3}");
+                return true;
+            });
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError($"Failed to set {path} after retries: {ex.Message}");
+            return false;
+        }
+        catch (TaskCanceledException ex)
+        {
+            Logger.LogError($"Setting {path} timed out after retries: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Unexpected error setting {path}: {ex.Message}");
+            return false;
+        }
     }
 }
