@@ -18,56 +18,54 @@ public class Tsw6ApiKey
 
     private static bool cachedApiKey = false;
 
+    private static string commonFileSpec = Path.Join("My Games",
+            "TrainSimWorld6",
+            "Saved",
+            "Config",
+            tsw6ApiKeyFileName);
+
     public static string Get()
     {
+
+        bool isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+        bool isWindows = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
         if (cachedApiKey)
         {
             return apiKey;
         }
 
-        apiKey = TryToGetApiKeyFromDocuments();
-
-        if (string.IsNullOrWhiteSpace(apiKey))
+        if (isWindows)
         {
-            apiKey = TryToGetApiKeyFromSteam();
-        }
+            apiKey = TryToGetApiKeyFromDocuments();
 
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                apiKey = TryToGetApiKeyFromSteam();
+            }
+        }
+        if (isLinux)
+        {
+            apiKey = TryToGetApiKeyFromLinuxFlatpak();
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                apiKey = TryToGetApiKeyFromLinuxNativeApp();
+            }
+        }
+        if (string.IsNullOrWhiteSpace(apiKey)) {
+            Logger.LogError("CommAPIKey.txt NOT FOUND.");
+        }
         cachedApiKey = true;
         return apiKey;
     }
 
     private static string TryToGetApiKeyFromDocuments()
     {
-        var prefix = "";
-        bool isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-
-        if (isLinux) {
-           prefix = Path.Join(
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.UserProfile),
-                    ".steam",
-                    "steam",
-                    "steamapps",
-                    "compatdata",
-                    tsw6AppId.ToString(),
-                 "pfx",
-                 "drive_c",
-                 "users",
-                 "steamuser",
-                 "Documents");
-        }
-        else {
-            prefix = Environment.GetFolderPath(
-            Environment.SpecialFolder.MyDocuments);
-        }
-
         var searchPathForNonDevelopmentMode = Path.Join(
-            prefix,
-            "My Games",
-            "TrainSimWorld6",
-            "Saved",
-            "Config",
-            tsw6ApiKeyFileName);
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.MyDocuments),
+            commonFileSpec);
+
 
         if (File.Exists(searchPathForNonDevelopmentMode))
         {
@@ -115,5 +113,59 @@ public class Tsw6ApiKey
         }
 
         return File.ReadAllText(searchPathForDevelopmentMode);
+    }
+
+
+    private static string TryToGetApiKeyFromLinuxNativeApp()
+    {
+        var LinuxNativeKeyLocation = Path.Join(
+            Environment.GetFolderPath(
+                    Environment.SpecialFolder.UserProfile),
+                    ".steam",
+                    "steam",
+                    "steamapps",
+                    "compatdata",
+                    tsw6AppId.ToString(),
+                 "pfx",
+                 "drive_c",
+                 "users",
+                 "steamuser",
+                 "Documents",
+                commonFileSpec);
+        Logger.LogInfo($"Searching for key in:{LinuxNativeKeyLocation}");
+        if (File.Exists(LinuxNativeKeyLocation))
+        {
+            return File.ReadAllText(LinuxNativeKeyLocation);
+        }
+
+        return string.Empty;
+    }
+    private static string TryToGetApiKeyFromLinuxFlatpak()
+    {
+        var LinuxFlatpakKeyLocation = Path.Join(
+            Environment.GetFolderPath(
+                    Environment.SpecialFolder.UserProfile),
+                    ".var",
+                    "app",
+                    "com.valvesoftware.Steam",
+                    ".local",
+                    "share",
+                    "Steam",
+                    "steamapps",
+                    "compatdata",
+                    tsw6AppId.ToString(),
+                    "pfx",
+                    "drive_c",
+                    "users",
+                    "steamuser",
+                    "Documents",
+                commonFileSpec);
+        Logger.LogInfo($"Searching for key in:{LinuxFlatpakKeyLocation}");
+        if (File.Exists(LinuxFlatpakKeyLocation))
+        {
+            return File.ReadAllText(LinuxFlatpakKeyLocation);
+        }
+
+        return string.Empty;
     }
 }
