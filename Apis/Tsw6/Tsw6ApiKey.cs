@@ -120,17 +120,17 @@ public class Tsw6ApiKey
     {
         var LinuxNativeKeyLocation = Path.Join(
             Environment.GetFolderPath(
-                    Environment.SpecialFolder.UserProfile),
-                    ".steam",
-                    "steam",
-                    "steamapps",
-                    "compatdata",
-                    tsw6AppId.ToString(),
-                 "pfx",
-                 "drive_c",
-                 "users",
-                 "steamuser",
-                 "Documents",
+                Environment.SpecialFolder.UserProfile),
+                ".steam",
+                "steam",
+                "steamapps",
+                "compatdata",
+                tsw6AppId.ToString(),
+                "pfx",
+                "drive_c",
+                "users",
+                "steamuser",
+                "Documents",
                 commonFileSpec);
         Logger.LogInfo($"Searching for key in:{LinuxNativeKeyLocation}");
         if (File.Exists(LinuxNativeKeyLocation))
@@ -144,21 +144,21 @@ public class Tsw6ApiKey
     {
         var LinuxFlatpakKeyLocation = Path.Join(
             Environment.GetFolderPath(
-                    Environment.SpecialFolder.UserProfile),
-                    ".var",
-                    "app",
-                    "com.valvesoftware.Steam",
-                    ".local",
-                    "share",
-                    "Steam",
-                    "steamapps",
-                    "compatdata",
-                    tsw6AppId.ToString(),
-                    "pfx",
-                    "drive_c",
-                    "users",
-                    "steamuser",
-                    "Documents",
+                Environment.SpecialFolder.UserProfile),
+                ".var",
+                "app",
+                "com.valvesoftware.Steam",
+                ".local",
+                "share",
+                "Steam",
+                "steamapps",
+                "compatdata",
+                tsw6AppId.ToString(),
+                "pfx",
+                "drive_c",
+                "users",
+                "steamuser",
+                "Documents",
                 commonFileSpec);
         Logger.LogInfo($"Searching for key in:{LinuxFlatpakKeyLocation}");
         if (File.Exists(LinuxFlatpakKeyLocation))
