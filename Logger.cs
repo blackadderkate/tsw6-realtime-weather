@@ -3,6 +3,7 @@ using System.IO;
 using Serilog;
 using Serilog.Events;
 
+
 namespace Tsw6RealtimeWeather;
 
 public static class Logger
@@ -23,7 +24,9 @@ public static class Logger
         var minimumLevel = ParseLogLevel(logLevel);
         
         // Configure Serilog to write to file only (not console to avoid UI conflicts)
-        var logFilePath = Path.Combine(AppContext.BaseDirectory, "TSW6RealtimeWeather.log");
+        var logFilePath = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                       "TSW6RealtimeWeather",
+                                       "TSW6RealtimeWeather.log");
         
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Is(minimumLevel)
