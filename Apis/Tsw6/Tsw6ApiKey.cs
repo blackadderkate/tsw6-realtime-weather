@@ -46,13 +46,10 @@ public class Tsw6ApiKey
         }
         if (isLinux)
         {
-            apiKey = TryToGetApiKeyFromLinuxFlatpak();
-            if (string.IsNullOrWhiteSpace(apiKey))
-            {
-                apiKey = TryToGetApiKeyFromLinuxNativeApp();
-            }
+            apiKey = TryToGetApiKeyFromLinuxSteam();
         }
-        if (string.IsNullOrWhiteSpace(apiKey)) {
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
             Logger.LogError("CommAPIKey.txt NOT FOUND.");
         }
         cachedApiKey = true;
@@ -116,56 +113,43 @@ public class Tsw6ApiKey
     }
 
 
-    private static string TryToGetApiKeyFromLinuxNativeApp()
+    private static string TryToGetApiKeyFromLinuxSteam()
     {
-        var LinuxNativeKeyLocation = Path.Join(
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.UserProfile),
-                ".steam",
-                "steam",
-                "steamapps",
-                "compatdata",
-                tsw6AppId.ToString(),
-                "pfx",
-                "drive_c",
-                "users",
-                "steamuser",
-                "Documents",
-                commonFileSpec);
-        Logger.LogInfo($"Searching for key in:{LinuxNativeKeyLocation}");
-        if (File.Exists(LinuxNativeKeyLocation))
+        var fs = NMFS.Shared;
+        var steamHandler = new SteamHandler(fs, OperatingSystem.IsWindows() ? WindowsRegistry.Shared : null);
+        var tsw6DeveloperAppId = AppId.From(tsw6AppId);
+        var tsw6Game = steamHandler.FindOneGameById(tsw6DeveloperAppId, out var errors);
+        if (tsw6Game == null)
         {
-            return File.ReadAllText(LinuxNativeKeyLocation);
+            Logger.LogError("Error: TSW6 is null.");
+            return string.Empty;
         }
 
-        return string.Empty;
-    }
-    private static string TryToGetApiKeyFromLinuxFlatpak()
-    {
-        var LinuxFlatpakKeyLocation = Path.Join(
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.UserProfile),
-                ".var",
-                "app",
-                "com.valvesoftware.Steam",
-                ".local",
-                "share",
-                "Steam",
-                "steamapps",
-                "compatdata",
-                tsw6AppId.ToString(),
-                "pfx",
-                "drive_c",
-                "users",
-                "steamuser",
-                "Documents",
-                commonFileSpec);
-        Logger.LogInfo($"Searching for key in:{LinuxFlatpakKeyLocation}");
-        if (File.Exists(LinuxFlatpakKeyLocation))
+        ProtonWinePrefix? protonPrefix = tsw6Game.GetProtonPrefix();
+        if (protonPrefix == null)
         {
-            return File.ReadAllText(LinuxFlatpakKeyLocation);
+            Logger.LogError("Error: protonPrefix is null.");
+            return string.Empty;
         }
+        var protonPrefixDirectory = protonPrefix.ProtonDirectory;
+        if (!fs.DirectoryExists(protonPrefixDirectory))
+        {
+            Logger.LogError("Error: protonPrefix does not exist.");
+            return string.Empty;
+        }
+            var LinuxNativeKeyLocation = Path.Join(protonPrefixDirectory.ToString(),
+                    "pfx",
+                    "drive_c",
+                    "users",
+                    "steamuser",
+                    "Documents",
+                    commonFileSpec);
+            Logger.LogInfo($"Searching for key in:{LinuxNativeKeyLocation}");
+            if (File.Exists(LinuxNativeKeyLocation))
+            {
+                return File.ReadAllText(LinuxNativeKeyLocation);
+            }
 
-        return string.Empty;
-    }
+            return string.Empty;
+        }
 }
