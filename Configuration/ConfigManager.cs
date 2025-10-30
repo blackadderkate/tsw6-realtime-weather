@@ -101,6 +101,10 @@ public static class ConfigManager
             ApiKeys = new ApiKeysConfig
             {
                 OpenWeather = ""
+            },
+            FailedUpdateAttemptCount = new FailedUpdateAttemptCountConfig
+            {
+                AttemptCount = 4
             }
         };
     }
@@ -116,6 +120,7 @@ public static class ConfigManager
         Logger.LogInfo($"  HTTP max retries: {config.Retry.MaxRetries}");
         Logger.LogInfo($"  HTTP initial delay: {config.Retry.InitialDelayMs} ms");
         Logger.LogInfo($"  Logging level: {config.Logging.Level}");
+        Logger.LogInfo($"  FailedUpdateAttemptCount: {config.FailedUpdateAttemptCount.AttemptCount}");
         
         if (!string.IsNullOrEmpty(config.ApiKeys.OpenWeather))
         {
