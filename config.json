@@ -15,5 +15,8 @@
   },
   "api_keys": {
     "openweather": ""
+  },
+  "closeafter": {
+    "failed_update_attempts" : 6
   }
 }

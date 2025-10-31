@@ -36,7 +36,7 @@ namespace Tsw6RealtimeWeather
             var config = ConfigManager.LoadConfig();
             
             Logger.Initialize(config.Logging.Level);
-
+            Logger.LogInfo($"***{config.FailedUpdateAttemptCount.AttemptCount}");
             // Show title before starting interactive displays
             AnsiConsole.Clear();
             AnsiConsole.Write(
@@ -123,6 +123,11 @@ namespace Tsw6RealtimeWeather
                 try
                 {
                     await weatherController.UpdatePlayerLocationAsync();
+                    if (weatherController.updateFailCount > config.FailedUpdateAttemptCount.AttemptCount)
+                    {
+                        Logger.LogError($"Error reading player location after {config.FailedUpdateAttemptCount.AttemptCount} attempts. Closing Program.");
+                        cancellationTokenSource.Cancel();
+                    }
                     await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), cancellationTokenSource.Token);
                 }
                 catch (OperationCanceledException)

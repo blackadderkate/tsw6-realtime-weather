@@ -18,9 +18,11 @@ internal class RealtimeWeatherController
     private PlayerLocation _playerLocation;
     private PlayerLocation _lastWeatherUpdateLocation;
     private double _accumulatedDistanceKm;
+    public int updateFailCount;
 
     public RealtimeWeatherController(Tsw6ApiClient tsw6ApiClient, OpenWeatherApiClient? openWeatherApiClient, AppConfig config, ConsoleUI ui)
     {
+        updateFailCount = 0;
         _tsw6ApiClient = tsw6ApiClient;
         _openWeatherApiClient = openWeatherApiClient;
         _ui = ui;
@@ -61,10 +63,12 @@ internal class RealtimeWeatherController
         
         if (newPlayerLocation == null)
         {
-            Logger.LogWarning("Could not retrieve player location - skipping update");
+            updateFailCount++;
+            Logger.LogWarning($"Failed to retrieve player location ({updateFailCount} times) - skipping update.");
             return;
         }
 
+        updateFailCount = 0;
         var distanceMeters = _playerLocation.DistanceToInMeters(newPlayerLocation);
         var distanceKm = _playerLocation.DistanceToInKilometers(newPlayerLocation);
         

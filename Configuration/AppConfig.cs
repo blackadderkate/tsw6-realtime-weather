@@ -36,6 +36,12 @@ public class AppConfig
     /// </summary>
     [JsonPropertyName("api_keys")]
     public ApiKeysConfig ApiKeys { get; set; } = new();
+
+    /// <summary>
+    /// Quit if failed to contact TSW6 after this many update attempts
+    /// </summary>
+    [JsonPropertyName("closeafter")]
+    public FailedUpdateAttemptCountConfig FailedUpdateAttemptCount { get; set; } = new();
 }
 
 /// <summary>
@@ -109,4 +115,16 @@ public class ApiKeysConfig
     /// </summary>
     [JsonPropertyName("openweather")]
     public string? OpenWeather { get; set; }
+}
+
+/// <summary>
+/// Quit if failed to contact TSW6 after this many update attempts
+/// </summary>
+public class FailedUpdateAttemptCountConfig
+{
+    /// <summary>
+    /// Quit if failed to contact TSW6 after this many update attempts
+    /// </summary>
+    [JsonPropertyName("failed_update_attempts")]
+    public int AttemptCount { get; set; } = 4;
 }
